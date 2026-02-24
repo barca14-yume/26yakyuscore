@@ -23,6 +23,7 @@ interface DataContextType {
     addPlateAppearances: (pas: PlateAppearance[]) => void;
     addPitchingStats: (stats: PitchingStats[]) => void;
     importData: (newData: Partial<AppData>) => void;
+    overwriteImportData: (newData: Partial<AppData>) => void;
     /** 選手を追加 */
     addPlayers: (players: Player[]) => void;
     /** 選手を更新 */
@@ -86,6 +87,22 @@ export function DataProvider({ children }: { children: ReactNode }) {
         }));
     }, []);
 
+    /** CSVインポート等で既存データを上書き */
+    const overwriteImportData = useCallback((newData: Partial<AppData>) => {
+        setData((prev) => ({
+            players: newData.players !== undefined ? newData.players : prev.players,
+            games: newData.games !== undefined ? newData.games : prev.games,
+            plateAppearances:
+                newData.plateAppearances !== undefined
+                    ? newData.plateAppearances
+                    : prev.plateAppearances,
+            pitchingStats:
+                newData.pitchingStats !== undefined
+                    ? newData.pitchingStats
+                    : prev.pitchingStats,
+        }));
+    }, []);
+
     /** 選手を追加（重複名チェック付き） */
     const addPlayers = useCallback((newPlayers: Player[]) => {
         setData((prev) => {
@@ -138,6 +155,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
                 addPlateAppearances,
                 addPitchingStats,
                 importData,
+                overwriteImportData,
                 addPlayers,
                 updatePlayer,
                 removePlayer,

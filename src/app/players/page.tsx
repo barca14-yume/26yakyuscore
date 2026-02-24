@@ -191,6 +191,8 @@ function PlayersPageContent() {
                                         highlight: true,
                                     },
                                     { label: "打点", value: `${playerBatting.rbi}` },
+                                    { label: "得点", value: `${playerBatting.runs}`, highlight: true },
+                                    { label: "盗塁", value: `${playerBatting.stolenBases}`, highlight: true },
                                     { label: "二塁打", value: `${playerBatting.doubles}` },
                                     { label: "三塁打", value: `${playerBatting.triples}` },
                                     { label: "本塁打", value: `${playerBatting.homeruns}` },

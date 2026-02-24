@@ -61,6 +61,8 @@ export function aggregateBatting(
         const strikeouts = appearances.filter((pa) => pa.result === "strikeout");
         const sacrifices = appearances.filter((pa) => pa.result === "sacrifice");
         const totalRbi = appearances.reduce((sum, pa) => sum + pa.rbi, 0);
+        const totalRuns = appearances.reduce((sum, pa) => sum + (pa.runs || 0), 0);
+        const totalStolenBases = appearances.reduce((sum, pa) => sum + (pa.stolenBases || 0), 0);
 
         // 打率 = 安打 / 打数
         const avg = atBats.length > 0 ? hits.length / atBats.length : 0;
@@ -101,6 +103,8 @@ export function aggregateBatting(
             strikeouts: strikeouts.length,
             sacrifices: sacrifices.length,
             rbi: totalRbi,
+            runs: totalRuns,
+            stolenBases: totalStolenBases,
             avg,
             obp,
             directionBreakdown,

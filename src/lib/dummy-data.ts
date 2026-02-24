@@ -173,6 +173,8 @@ function generatePlateAppearances(): PlateAppearance[] {
                         : undefined,
                     rbi: result === "homerun" ? 1 + Math.floor(rand() * 2) :
                         ["single", "double", "triple"].includes(result) ? (rand() > 0.6 ? 1 : 0) : 0,
+                    runs: (["single", "double", "triple", "homerun", "walk", "hbp", "error"].includes(result) && rand() > 0.7) ? 1 : 0,
+                    stolenBases: (["single", "double", "walk", "error"].includes(result) && rand() > 0.85) ? 1 : 0,
                 });
             }
         }

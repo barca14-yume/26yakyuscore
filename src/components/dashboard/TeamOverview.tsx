@@ -41,12 +41,12 @@ export default function TeamOverview({ battingStats, limit = 8 }: TeamOverviewPr
                             {/* 順位 */}
                             <span
                                 className={`flex items-center justify-center w-7 h-7 rounded-lg text-xs font-bold ${index === 0
-                                        ? "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-400"
-                                        : index === 1
-                                            ? "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
-                                            : index === 2
-                                                ? "bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-400"
-                                                : "bg-muted text-muted-foreground"
+                                    ? "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-400"
+                                    : index === 1
+                                        ? "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
+                                        : index === 2
+                                            ? "bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-400"
+                                            : "bg-muted text-muted-foreground"
                                     }`}
                             >
                                 {index + 1}
@@ -70,8 +70,8 @@ export default function TeamOverview({ battingStats, limit = 8 }: TeamOverviewPr
                                 <p className="text-sm font-bold tabular-nums">
                                     .{(batter.avg * 1000).toFixed(0).padStart(3, "0")}
                                 </p>
-                                <p className="text-[10px] text-muted-foreground">
-                                    {batter.hits}/{batter.atBats}
+                                <p className="text-[10px] text-muted-foreground whitespace-nowrap">
+                                    {batter.rbi}点 {batter.runs}得 {batter.stolenBases}盗
                                 </p>
                             </div>
 
@@ -86,6 +86,6 @@ export default function TeamOverview({ battingStats, limit = 8 }: TeamOverviewPr
                     </div>
                 )}
             </CardContent>
-        </Card>
+        </Card >
     );
 }

@@ -61,6 +61,8 @@ export interface PlateAppearance {
     battedBallType?: BattedBallType;
     battedBallDirection?: BattedBallDirection;
     rbi: number;
+    runs: number;
+    stolenBases: number;
 }
 
 /** 投手成績（試合ごと） */
@@ -101,6 +103,8 @@ export interface BattingAggregation {
     strikeouts: number;
     sacrifices: number;
     rbi: number;
+    runs: number;
+    stolenBases: number;
     avg: number;
     obp: number;
     /** 打球方向分布 */

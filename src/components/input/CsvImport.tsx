@@ -9,6 +9,7 @@ import Papa from "papaparse";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
 import { useData } from "@/lib/data-context";
 import {
     GameMetadata,
@@ -43,7 +44,7 @@ const CSV_TYPES: { value: CsvType; label: string; description: string }[] = [
         value: "batting",
         label: "打席データ",
         description:
-            "gameId, playerName, inning, result, battedBallType, battedBallDirection, rbi",
+            "gameId, playerName, inning, result, battedBallType, battedBallDirection, rbi, runs, stolenBases",
     },
     {
         value: "pitching",
@@ -60,6 +61,7 @@ export default function CsvImport() {
     const [fileName, setFileName] = useState("");
     const [error, setError] = useState("");
     const [imported, setImported] = useState(false);
+    const [importMode, setImportMode] = useState<"add" | "overwrite">("add");
 
     /** ファイル選択時のパース処理 */
     const handleFileChange = useCallback(
@@ -95,6 +97,9 @@ export default function CsvImport() {
     const handleImport = useCallback(() => {
         if (!preview) return;
 
+        const { importData, overwriteImportData } = useData();
+        const executeImport = importMode === "add" ? importData : overwriteImportData;
+
         try {
             switch (csvType) {
                 case "games": {
@@ -107,7 +112,7 @@ export default function CsvImport() {
                         scoreAgainst: Number(row.scoreAgainst) || 0,
                         gameType: (row.gameType as GameType) || "official",
                     }));
-                    importData({ games });
+                    executeImport({ games });
                     break;
                 }
 
@@ -123,8 +128,10 @@ export default function CsvImport() {
                         battedBallDirection:
                             (row.battedBallDirection as BattedBallDirection) || undefined,
                         rbi: Number(row.rbi) || 0,
+                        runs: Number(row.runs) || 0,
+                        stolenBases: Number(row.stolenBases) || 0,
                     }));
-                    importData({ plateAppearances: pas });
+                    executeImport({ plateAppearances: pas });
                     break;
                 }
 
@@ -143,7 +150,7 @@ export default function CsvImport() {
                         strikes: Number(row.strikes) || 0,
                         balls: Number(row.balls) || 0,
                     }));
-                    importData({ pitchingStats: stats });
+                    executeImport({ pitchingStats: stats });
                     break;
                 }
             }
@@ -157,7 +164,51 @@ export default function CsvImport() {
         } catch {
             setError("データのインポートに失敗しました");
         }
-    }, [csvType, preview, importData]);
+    }, [csvType, preview, importMode, useData]);
+
+    /** データをエクスポート */
+    const handleExport = useCallback(() => {
+        const { data } = useData();
+        let csvContent = "";
+        let fileName = "";
+
+        switch (csvType) {
+            case "games":
+                csvContent = Papa.unparse(data.games);
+                fileName = "games_export.csv";
+                break;
+            case "batting":
+                csvContent = Papa.unparse(data.plateAppearances);
+                fileName = "batting_export.csv";
+                break;
+            case "pitching":
+                // カラム名をインポート形式に合わせる
+                const pStats = data.pitchingStats.map(s => ({
+                    gameId: s.gameId,
+                    playerName: s.playerName,
+                    ip: s.inningsPitched,
+                    runsAllowed: s.runsAllowed,
+                    earnedRuns: s.earnedRuns,
+                    hits: s.hitsAllowed,
+                    walks: s.walksAllowed,
+                    strikeouts: s.strikeouts,
+                    totalPitches: s.totalPitches,
+                    strikes: s.strikes,
+                    balls: s.balls
+                }));
+                csvContent = Papa.unparse(pStats);
+                fileName = "pitching_export.csv";
+                break;
+        }
+
+        const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = fileName;
+        a.click();
+        URL.revokeObjectURL(url);
+    }, [csvType, useData]);
 
     /** プレビューをクリア */
     const clearPreview = () => {
@@ -178,7 +229,7 @@ export default function CsvImport() {
                 break;
             case "batting":
                 csvContent =
-                    "gameId,playerName,inning,result,battedBallType,battedBallDirection,rbi\ngame-001,田中 翔太,1,single,liner,center,1";
+                    "gameId,playerName,inning,result,battedBallType,battedBallDirection,rbi,runs,stolenBases\ngame-001,田中 翔太,1,single,liner,center,1,1,1";
                 break;
             case "pitching":
                 csvContent =
@@ -211,21 +262,21 @@ export default function CsvImport() {
                                 clearPreview();
                             }}
                             className={`w-full flex items-start gap-3 p-3 rounded-xl text-left transition-all duration-200 ${csvType === type.value
-                                    ? "bg-emerald-50 dark:bg-emerald-950/30 ring-1 ring-emerald-300 dark:ring-emerald-700"
-                                    : "bg-muted/30 hover:bg-muted/60"
+                                ? "bg-emerald-50 dark:bg-emerald-950/30 ring-1 ring-emerald-300 dark:ring-emerald-700"
+                                : "bg-muted/30 hover:bg-muted/60"
                                 }`}
                         >
                             <FileSpreadsheet
                                 className={`h-5 w-5 mt-0.5 ${csvType === type.value
-                                        ? "text-emerald-600 dark:text-emerald-400"
-                                        : "text-muted-foreground"
+                                    ? "text-emerald-600 dark:text-emerald-400"
+                                    : "text-muted-foreground"
                                     }`}
                             />
                             <div>
                                 <p
                                     className={`text-sm font-medium ${csvType === type.value
-                                            ? "text-emerald-700 dark:text-emerald-400"
-                                            : ""
+                                        ? "text-emerald-700 dark:text-emerald-400"
+                                        : ""
                                         }`}
                                 >
                                     {type.label}
@@ -236,6 +287,19 @@ export default function CsvImport() {
                             </div>
                         </button>
                     ))}
+                </CardContent>
+            </Card>
+
+            {/* 現在のデータのエクスポート */}
+            <Card className="border-border/50 shadow-sm overflow-hidden">
+                <CardContent className="p-0">
+                    <button
+                        onClick={handleExport}
+                        className="w-full flex items-center justify-center gap-2 py-3 bg-muted/50 hover:bg-muted font-medium text-sm transition-colors"
+                    >
+                        <Download className="h-4 w-4" />
+                        選択中のデータをCSVでエクスポート
+                    </button>
                 </CardContent>
             </Card>
 
@@ -337,14 +401,31 @@ export default function CsvImport() {
                                 {preview.length - 10}行が省略されています
                             </p>
                         )}
-
-                        <Button
-                            onClick={handleImport}
-                            className="w-full mt-4 h-10 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-lg shadow-emerald-500/20"
-                        >
-                            <Upload className="h-4 w-4 mr-2" />
-                            {preview.length}件のデータをインポート
-                        </Button>
+                        <div className="grid grid-cols-2 gap-3 mt-4">
+                            <div className="space-y-1.5">
+                                <Label className="text-xs">インポート設定</Label>
+                                <select
+                                    value={importMode}
+                                    onChange={(e) => setImportMode(e.target.value as "add" | "overwrite")}
+                                    className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                                >
+                                    <option value="add">既存データに追加</option>
+                                    <option value="overwrite">既存データを削除して上書き</option>
+                                </select>
+                            </div>
+                            <div className="flex items-end">
+                                <Button
+                                    onClick={handleImport}
+                                    className={`w-full h-10 shadow-lg shadow-emerald-500/20 ${importMode === "overwrite"
+                                        ? "bg-amber-600 hover:bg-amber-700"
+                                        : "bg-emerald-600 hover:bg-emerald-700"
+                                        } text-white`}
+                                >
+                                    <Upload className="h-4 w-4 mr-2" />
+                                    {preview.length}件を実行
+                                </Button>
+                            </div>
+                        </div>
                     </CardContent>
                 </Card>
             )}
@@ -360,6 +441,6 @@ export default function CsvImport() {
                     </CardContent>
                 </Card>
             )}
-        </div>
+        </div >
     );
 }

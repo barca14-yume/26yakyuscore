@@ -69,6 +69,8 @@ interface PAInput {
     battedBallType: BattedBallType | "";
     battedBallDirection: BattedBallDirection | "";
     rbi: number;
+    runs: number;
+    stolenBases: number;
 }
 
 /** 投手入力の型 */
@@ -94,6 +96,8 @@ function emptyPA(): PAInput {
         battedBallType: "",
         battedBallDirection: "",
         rbi: 0,
+        runs: 0,
+        stolenBases: 0,
     };
 }
 
@@ -114,10 +118,14 @@ function emptyPitching(): PitchingInput {
 }
 
 export default function GameInputForm() {
-    const { addGame, addPlateAppearances, addPitchingStats, playerNames } = useData();
+    const { data, addGame, addPlateAppearances, addPitchingStats, playerNames } = useData();
     const [submitted, setSubmitted] = useState(false);
 
-    // 試合メタ
+    // 入力モード: "new" (新規試合) | "existing" (既存試合に成績追加)
+    const [inputMode, setInputMode] = useState<"new" | "existing">("new");
+    const [selectedGameId, setSelectedGameId] = useState<string>("");
+
+    // 試合データ
     const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
     const [opponent, setOpponent] = useState("");
     const [result, setResult] = useState<GameResult>("win");
@@ -136,7 +144,21 @@ export default function GameInputForm() {
     // セクション表示切替
     const [showPitching, setShowPitching] = useState(false);
 
-    /** 打席行追加 */
+    // 既存試合が選択されたら、その試合の情報を反映（任意）またはIDだけ保持
+    const handleGameSelect = (id: string) => {
+        setSelectedGameId(id);
+        const game = data.games.find(g => g.id === id);
+        if (game) {
+            setDate(game.date);
+            setOpponent(game.opponent);
+            setResult(game.result);
+            setScoreFor(game.scoreFor);
+            setScoreAgainst(game.scoreAgainst);
+            setGameType(game.gameType);
+        }
+    };
+
+    /** 打数行追加 */
     const addPARow = () => setPaInputs((prev) => [...prev, emptyPA()]);
 
     /** 打席行削除 */
@@ -177,22 +199,27 @@ export default function GameInputForm() {
 
     /** フォーム送信 */
     const handleSubmit = () => {
-        if (!opponent.trim()) return;
+        // 新規の場合は相手名必須、既存の場合は試合選択必須
+        if (inputMode === "new" && !opponent.trim()) return;
+        if (inputMode === "existing" && !selectedGameId) return;
 
-        const gameId = `game-${Date.now()}`;
+        const gameId = inputMode === "existing" ? selectedGameId : `game-${Date.now()}`;
 
-        // 試合メタデータ
-        const game: GameMetadata = {
-            id: gameId,
-            date,
-            opponent: opponent.trim(),
-            result,
-            scoreFor,
-            scoreAgainst,
-            gameType,
-        };
+        // 新規作成時のみ試合メタデータを追加
+        if (inputMode === "new") {
+            const game: GameMetadata = {
+                id: gameId,
+                date,
+                opponent: opponent.trim(),
+                result,
+                scoreFor,
+                scoreAgainst,
+                gameType,
+            };
+            addGame(game);
+        }
 
-        // 打席データ
+        // 打席データ（空の名前は除外）
         const pas: PlateAppearance[] = paInputs
             .filter((pa) => pa.playerName.trim())
             .map((pa, i) => ({
@@ -204,6 +231,8 @@ export default function GameInputForm() {
                 battedBallType: pa.battedBallType || undefined,
                 battedBallDirection: pa.battedBallDirection || undefined,
                 rbi: pa.rbi,
+                runs: pa.runs,
+                stolenBases: pa.stolenBases,
             }));
 
         // 投手成績
@@ -224,7 +253,6 @@ export default function GameInputForm() {
                 balls: p.balls,
             }));
 
-        addGame(game);
         if (pas.length > 0) addPlateAppearances(pas);
         if (pitching.length > 0) addPitchingStats(pitching);
 
@@ -235,6 +263,7 @@ export default function GameInputForm() {
             setOpponent("");
             setScoreFor(0);
             setScoreAgainst(0);
+            setSelectedGameId("");
             setPaInputs([emptyPA()]);
             setPitchingInputs([emptyPitching()]);
         }, 2000);
@@ -255,12 +284,48 @@ export default function GameInputForm() {
 
     return (
         <div className="space-y-4">
+            {/* 入力モード切り替え */}
+            <div className="flex gap-2">
+                {(["new", "existing"] as const).map((mode) => (
+                    <button
+                        key={mode}
+                        onClick={() => setInputMode(mode)}
+                        className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-all duration-300 ${inputMode === mode
+                            ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/20"
+                            : "bg-muted text-muted-foreground hover:bg-muted/80"
+                            }`}
+                    >
+                        {mode === "new" ? "新規試合を登録" : "既存の試合を選択"}
+                    </button>
+                ))}
+            </div>
+
             {/* 試合情報 */}
             <Card className="border-border/50 shadow-sm">
                 <CardHeader className="pb-3">
                     <CardTitle className="text-base">試合情報</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                    {inputMode === "existing" && (
+                        <div className="space-y-1.5 pb-2">
+                            <Label className="text-xs font-semibold text-emerald-600">試合を選択</Label>
+                            <select
+                                value={selectedGameId}
+                                onChange={(e) => handleGameSelect(e.target.value)}
+                                className="w-full h-10 rounded-md border-2 border-emerald-100 bg-background px-3 text-sm focus:border-emerald-500 outline-none transition-all"
+                            >
+                                <option value="">追加する試合を選んでください...</option>
+                                {data.games
+                                    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                                    .map((g) => (
+                                        <option key={g.id} value={g.id}>
+                                            {g.date} - vs {g.opponent} ({g.scoreFor}-{g.scoreAgainst})
+                                        </option>
+                                    ))}
+                            </select>
+                        </div>
+                    )}
+
                     <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
                             <Label className="text-xs">日付</Label>
@@ -268,7 +333,8 @@ export default function GameInputForm() {
                                 type="date"
                                 value={date}
                                 onChange={(e) => setDate(e.target.value)}
-                                className="h-9 text-sm"
+                                disabled={inputMode === "existing"}
+                                className="h-9 text-sm disabled:opacity-70 disabled:bg-muted"
                             />
                         </div>
                         <div className="space-y-1.5">
@@ -277,7 +343,8 @@ export default function GameInputForm() {
                                 placeholder="チーム名"
                                 value={opponent}
                                 onChange={(e) => setOpponent(e.target.value)}
-                                className="h-9 text-sm"
+                                disabled={inputMode === "existing"}
+                                className="h-9 text-sm disabled:opacity-70 disabled:bg-muted"
                             />
                         </div>
                     </div>
@@ -288,7 +355,8 @@ export default function GameInputForm() {
                             <select
                                 value={result}
                                 onChange={(e) => setResult(e.target.value as GameResult)}
-                                className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                                disabled={inputMode === "existing"}
+                                className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm disabled:opacity-70 disabled:bg-muted"
                             >
                                 <option value="win">勝ち</option>
                                 <option value="loss">負け</option>
@@ -302,7 +370,8 @@ export default function GameInputForm() {
                                 min={0}
                                 value={scoreFor}
                                 onChange={(e) => setScoreFor(Number(e.target.value))}
-                                className="h-9 text-sm"
+                                disabled={inputMode === "existing"}
+                                className="h-9 text-sm disabled:opacity-70 disabled:bg-muted"
                             />
                         </div>
                         <div className="space-y-1.5">
@@ -312,7 +381,8 @@ export default function GameInputForm() {
                                 min={0}
                                 value={scoreAgainst}
                                 onChange={(e) => setScoreAgainst(Number(e.target.value))}
-                                className="h-9 text-sm"
+                                disabled={inputMode === "existing"}
+                                className="h-9 text-sm disabled:opacity-70 disabled:bg-muted"
                             />
                         </div>
                     </div>
@@ -324,10 +394,11 @@ export default function GameInputForm() {
                                 <button
                                     key={type}
                                     onClick={() => setGameType(type)}
+                                    disabled={inputMode === "existing"}
                                     className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${gameType === type
                                         ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400 ring-1 ring-emerald-300 dark:ring-emerald-700"
                                         : "bg-muted text-muted-foreground hover:bg-muted/80"
-                                        }`}
+                                        } ${inputMode === "existing" && gameType !== type ? "opacity-30" : ""}`}
                                 >
                                     {type === "official" ? "公式戦" : "練習試合"}
                                 </button>
@@ -481,6 +552,38 @@ export default function GameInputForm() {
                                         value={pa.rbi}
                                         onChange={(e) =>
                                             updatePA(index, "rbi", Number(e.target.value))
+                                        }
+                                        className="h-8 text-xs"
+                                    />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                                <div className="space-y-1">
+                                    <Label className="text-[10px] text-muted-foreground">
+                                        得点
+                                    </Label>
+                                    <Input
+                                        type="number"
+                                        min={0}
+                                        max={1}
+                                        value={pa.runs}
+                                        onChange={(e) =>
+                                            updatePA(index, "runs", Number(e.target.value))
+                                        }
+                                        className="h-8 text-xs"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="text-[10px] text-muted-foreground">
+                                        盗塁
+                                    </Label>
+                                    <Input
+                                        type="number"
+                                        min={0}
+                                        max={3}
+                                        value={pa.stolenBases}
+                                        onChange={(e) =>
+                                            updatePA(index, "stolenBases", Number(e.target.value))
                                         }
                                         className="h-8 text-xs"
                                     />
