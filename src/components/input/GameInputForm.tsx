@@ -54,11 +54,17 @@ const BATTED_BALL_OPTIONS: { value: BattedBallType; label: string }[] = [
     { value: "fly", label: "フライ" },
 ];
 
-/** 打球方向選択肢 */
+/** 打球方向選択肢（守備位置） */
 const DIRECTION_OPTIONS: { value: BattedBallDirection; label: string }[] = [
-    { value: "pull", label: "引っ張り(左)" },
-    { value: "center", label: "センター" },
-    { value: "opposite", label: "流し(右)" },
+    { value: "1", label: "投" },
+    { value: "2", label: "捕" },
+    { value: "3", label: "一" },
+    { value: "4", label: "二" },
+    { value: "5", label: "三" },
+    { value: "6", label: "遊" },
+    { value: "7", label: "左" },
+    { value: "8", label: "中" },
+    { value: "9", label: "右" },
 ];
 
 /** 打席入力1行分の型 */

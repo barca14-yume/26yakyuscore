@@ -120,7 +120,7 @@ const AT_BAT_RESULTS = [
 ];
 
 const BATTED_BALL_TYPES = ["grounder", "liner", "fly"] as const;
-const BATTED_BALL_DIRS = ["pull", "center", "opposite"] as const;
+const BATTED_BALL_DIRS = ["1", "2", "3", "4", "5", "6", "7", "8", "9"] as const;
 
 /** シード付き擬似乱数（再現性ありのダミーデータ生成用） */
 function seededRandom(seed: number): () => number {

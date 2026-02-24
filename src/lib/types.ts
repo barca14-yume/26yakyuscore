@@ -26,8 +26,8 @@ export type AtBatResult =
 /** 打球タイプ */
 export type BattedBallType = "grounder" | "liner" | "fly";
 
-/** 打球方向 */
-export type BattedBallDirection = "pull" | "center" | "opposite";
+/** 打球方向（守備位置） */
+export type BattedBallDirection = "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9";
 
 /** 選手マスタ */
 export interface Player {

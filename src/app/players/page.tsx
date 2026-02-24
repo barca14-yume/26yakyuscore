@@ -43,8 +43,8 @@ function PlayersPageContent() {
 
     // 全選手の打撃集計
     const allBattingStats = useMemo(
-        () => aggregateBatting(data.plateAppearances),
-        [data.plateAppearances]
+        () => aggregateBatting(data.plateAppearances, data.players),
+        [data.plateAppearances, data.players]
     );
 
     // 全選手の投球集計

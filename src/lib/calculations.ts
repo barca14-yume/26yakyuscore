@@ -9,6 +9,8 @@ import {
     PitchingAggregation,
     AtBatResult,
     GameMetadata,
+    Player,
+    BattedBallDirection,
 } from "./types";
 
 /** 安打に該当する打席結果 */
@@ -32,12 +34,39 @@ function isAtBat(result: AtBatResult): boolean {
 }
 
 /**
+ * 守備位置と打者の利き腕から打球方向カテゴリ（プル/センター/オポジット）を判定する
+ */
+function getPositionCategory(pos: BattedBallDirection, batHand: string): "pull" | "center" | "opposite" {
+    const p = parseInt(pos);
+    if (isNaN(p)) return "center"; // 万が一数値以外のデータがあった場合
+
+    if (batHand === "左") {
+        // 左打者: 3(一), 4(二), 9(右) が引っ張り
+        if ([3, 4, 9].includes(p)) return "pull";
+        if ([1, 2, 8].includes(p)) return "center";
+        return "opposite"; // 5, 6, 7
+    } else {
+        // 右打者: 5(三), 6(遊), 7(左) が引っ張り
+        if ([5, 6, 7].includes(p)) return "pull";
+        if ([1, 2, 8].includes(p)) return "center";
+        return "opposite"; // 3, 4, 9
+    }
+}
+
+/**
  * 選手ごとの打撃成績を集計する
  */
 export function aggregateBatting(
     plateAppearances: PlateAppearance[],
+    players: Player[] = [],
     playerName?: string
 ): BattingAggregation[] {
+    // 選手マスタをMap化
+    const playerMap = new Map<string, Player>();
+    for (const p of players) {
+        playerMap.set(p.name, p);
+    }
+
     // 選手名でグループ化
     const grouped = new Map<string, PlateAppearance[]>();
 
@@ -74,13 +103,17 @@ export function aggregateBatting(
                 ? (hits.length + walks.length + hbp.length) / obpDenominator
                 : 0;
 
-        // 打球方向分布
-        const withDirection = appearances.filter((pa) => pa.battedBallDirection);
-        const directionBreakdown = {
-            pull: withDirection.filter((pa) => pa.battedBallDirection === "pull").length,
-            center: withDirection.filter((pa) => pa.battedBallDirection === "center").length,
-            opposite: withDirection.filter((pa) => pa.battedBallDirection === "opposite").length,
-        };
+        // 打球方向分布 (1-9の守備位置から プル/センター/オポジット に変換)
+        const directionBreakdown = { pull: 0, center: 0, opposite: 0 };
+        const player = playerMap.get(name);
+        const batHand = player?.batHand || "右";
+
+        for (const pa of appearances) {
+            if (pa.battedBallDirection) {
+                const category = getPositionCategory(pa.battedBallDirection, batHand);
+                directionBreakdown[category]++;
+            }
+        }
 
         // 打球タイプ分布
         const withType = appearances.filter((pa) => pa.battedBallType);
