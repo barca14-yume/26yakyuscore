@@ -55,7 +55,7 @@ const CSV_TYPES: { value: CsvType; label: string; description: string }[] = [
 ];
 
 export default function CsvImport() {
-    const { importData } = useData();
+    const { data, importData, overwriteImportData } = useData();
     const [csvType, setCsvType] = useState<CsvType>("games");
     const [preview, setPreview] = useState<Record<string, string>[] | null>(null);
     const [fileName, setFileName] = useState("");
@@ -97,7 +97,6 @@ export default function CsvImport() {
     const handleImport = useCallback(() => {
         if (!preview) return;
 
-        const { importData, overwriteImportData } = useData();
         const executeImport = importMode === "add" ? importData : overwriteImportData;
 
         try {
@@ -164,11 +163,10 @@ export default function CsvImport() {
         } catch {
             setError("データのインポートに失敗しました");
         }
-    }, [csvType, preview, importMode, useData]);
+    }, [csvType, preview, importMode, importData, overwriteImportData]);
 
     /** データをエクスポート */
     const handleExport = useCallback(() => {
-        const { data } = useData();
         let csvContent = "";
         let fileName = "";
 
@@ -208,7 +206,7 @@ export default function CsvImport() {
         a.download = fileName;
         a.click();
         URL.revokeObjectURL(url);
-    }, [csvType, useData]);
+    }, [csvType, data]);
 
     /** プレビューをクリア */
     const clearPreview = () => {
