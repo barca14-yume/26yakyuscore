@@ -49,6 +49,7 @@ export interface GameMetadata {
     scoreFor: number;
     scoreAgainst: number;
     gameType: GameType;
+    scoreboardImageUrl?: string;
 }
 
 /** 打席データ（1打席ごと） */

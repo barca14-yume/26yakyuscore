@@ -3,11 +3,12 @@
 /**
  * 最近の試合結果リストコンポーネント
  */
-import React from "react";
+import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { GameMetadata } from "@/lib/types";
-import { Calendar, Trophy, Swords } from "lucide-react";
+import { Calendar, Trophy, Swords, ImageIcon } from "lucide-react";
+import { GameDetailsDialog } from "./GameDetailsDialog";
 
 interface RecentGamesProps {
     games: GameMetadata[];
@@ -36,6 +37,12 @@ function getResultBadge(result: GameMetadata["result"]) {
                     "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-400 border-amber-200 dark:border-amber-800",
             };
     }
+
+    // フォールバック
+    return {
+        label: "不明",
+        className: "bg-gray-100 text-gray-700 dark:bg-gray-800/50 dark:text-gray-400 border-gray-200 dark:border-gray-700",
+    };
 }
 
 /** 試合タイプのラベル */
@@ -44,9 +51,17 @@ function getGameTypeLabel(type: GameMetadata["gameType"]) {
 }
 
 export default function RecentGames({ games, limit = 5 }: RecentGamesProps) {
+    const [selectedGame, setSelectedGame] = useState<GameMetadata | null>(null);
+    const [isDialogOpen, setIsDialogOpen] = useState(false);
+
     const sortedGames = [...games]
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
         .slice(0, limit);
+
+    const handleGameClick = (game: GameMetadata) => {
+        setSelectedGame(game);
+        setIsDialogOpen(true);
+    };
 
     return (
         <Card className="border-border/50 shadow-sm">
@@ -62,23 +77,24 @@ export default function RecentGames({ games, limit = 5 }: RecentGamesProps) {
                     return (
                         <div
                             key={game.id}
-                            className="flex items-center gap-3 p-3 rounded-xl bg-muted/30 hover:bg-muted/60 transition-colors duration-200"
+                            onClick={() => handleGameClick(game)}
+                            className="flex items-center gap-3 p-3 rounded-xl bg-muted/30 hover:bg-muted/60 transition-colors duration-200 cursor-pointer"
                         >
                             {/* 結果アイコン */}
                             <div
                                 className={`flex items-center justify-center w-9 h-9 rounded-lg ${game.result === "win"
-                                        ? "bg-emerald-100 dark:bg-emerald-900/40"
-                                        : game.result === "loss"
-                                            ? "bg-red-100 dark:bg-red-900/40"
-                                            : "bg-amber-100 dark:bg-amber-900/40"
+                                    ? "bg-emerald-100 dark:bg-emerald-900/40"
+                                    : game.result === "loss"
+                                        ? "bg-red-100 dark:bg-red-900/40"
+                                        : "bg-amber-100 dark:bg-amber-900/40"
                                     }`}
                             >
                                 <Trophy
                                     className={`h-4 w-4 ${game.result === "win"
-                                            ? "text-emerald-600 dark:text-emerald-400"
-                                            : game.result === "loss"
-                                                ? "text-red-500 dark:text-red-400"
-                                                : "text-amber-600 dark:text-amber-400"
+                                        ? "text-emerald-600 dark:text-emerald-400"
+                                        : game.result === "loss"
+                                            ? "text-red-500 dark:text-red-400"
+                                            : "text-amber-600 dark:text-amber-400"
                                         }`}
                                 />
                             </div>
@@ -108,10 +124,16 @@ export default function RecentGames({ games, limit = 5 }: RecentGamesProps) {
                             </div>
 
                             {/* スコア */}
-                            <div className="text-right">
+                            <div className="text-right flex flex-col items-end gap-1">
                                 <p className="text-lg font-bold tabular-nums">
                                     {game.scoreFor} - {game.scoreAgainst}
                                 </p>
+                                {game.scoreboardImageUrl && (
+                                    <div className="flex items-center gap-1 text-[10px] text-indigo-500 bg-indigo-50 dark:bg-indigo-950/30 px-1.5 py-0.5 rounded border border-indigo-100 dark:border-indigo-800">
+                                        <ImageIcon className="h-3 w-3" />
+                                        <span>画像あり</span>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     );
@@ -123,6 +145,12 @@ export default function RecentGames({ games, limit = 5 }: RecentGamesProps) {
                     </div>
                 )}
             </CardContent>
+
+            <GameDetailsDialog
+                game={selectedGame}
+                open={isDialogOpen}
+                onOpenChange={setIsDialogOpen}
+            />
         </Card>
     );
 }

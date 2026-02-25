@@ -20,6 +20,7 @@ interface DataContextType {
     /** 選手名一覧（選手セレクト用） */
     playerNames: string[];
     addGame: (game: GameMetadata) => void;
+    updateGame: (gameId: string, updates: Partial<GameMetadata>) => void;
     addPlateAppearances: (pas: PlateAppearance[]) => void;
     addPitchingStats: (stats: PitchingStats[]) => void;
     importData: (newData: Partial<AppData>) => void;
@@ -89,6 +90,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
         setData((prev) => ({
             ...prev,
             games: [...prev.games, game],
+        }));
+    }, []);
+
+    /** 試合情報を更新 */
+    const updateGame = useCallback((gameId: string, updates: Partial<GameMetadata>) => {
+        setData((prev) => ({
+            ...prev,
+            games: prev.games.map((g) =>
+                g.id === gameId ? { ...g, ...updates } : g
+            ),
         }));
     }, []);
 
@@ -210,6 +221,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
                 data,
                 playerNames,
                 addGame,
+                updateGame,
                 addPlateAppearances,
                 addPitchingStats,
                 importData,

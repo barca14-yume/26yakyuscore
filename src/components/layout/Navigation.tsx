@@ -40,8 +40,8 @@ export default function Navigation() {
                                 key={item.href}
                                 href={item.href}
                                 className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-all duration-200 ${isActive
-                                        ? "text-emerald-600 dark:text-emerald-400"
-                                        : "text-muted-foreground hover:text-foreground"
+                                    ? "text-emerald-600 dark:text-emerald-400"
+                                    : "text-muted-foreground hover:text-foreground"
                                     }`}
                             >
                                 <Icon
@@ -81,8 +81,8 @@ export default function Navigation() {
                                 key={item.href}
                                 href={item.href}
                                 className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${isActive
-                                        ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400 shadow-sm"
-                                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                                    ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400 shadow-sm"
+                                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
                                     }`}
                             >
                                 <Icon className="h-4.5 w-4.5" />
@@ -92,10 +92,42 @@ export default function Navigation() {
                     })}
                 </div>
 
+                {/* アクション: データリセット */}
+                <div className="px-4 py-4 mt-auto space-y-2">
+                    <button
+                        onClick={() => {
+                            if (window.confirm("現在のデータをすべて消去して、一から入力を始めますか？\n（現在保存されているデータは失われます）")) {
+                                const emptyData = {
+                                    players: [],
+                                    games: [],
+                                    plateAppearances: [],
+                                    pitchingStats: [],
+                                };
+                                localStorage.setItem("yakyuscore-data", JSON.stringify(emptyData));
+                                window.location.reload();
+                            }
+                        }}
+                        className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-red-200 dark:border-red-900 bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-400 text-xs font-medium hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors"
+                    >
+                        全データを消去（新規作成）
+                    </button>
+                    <button
+                        onClick={() => {
+                            if (window.confirm("サンプルデータ（デモ用）を復元しますか？\n（現在保存されているデータは失われます）")) {
+                                localStorage.removeItem("yakyuscore-data");
+                                window.location.reload();
+                            }
+                        }}
+                        className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-border bg-muted/50 text-muted-foreground text-[10px] font-medium hover:bg-muted transition-colors"
+                    >
+                        サンプルデータを復元
+                    </button>
+                </div>
+
                 {/* フッター */}
-                <div className="px-6 py-4 border-t border-border">
+                <div className="px-6 py-4 border-t border-border mt-0">
                     <p className="text-[11px] text-muted-foreground">
-                        © 2026 Baseball Ops Dashboard
+                        © 2026 Baseball Ops
                     </p>
                 </div>
             </aside>

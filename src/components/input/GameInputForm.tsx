@@ -4,7 +4,7 @@
  * 試合入力フォームコンポーネント
  * 試合メタデータ + 打席データ + 投手成績を入力
  */
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +30,7 @@ import {
     CheckCircle2,
     ChevronDown,
     ChevronUp,
+    ImageIcon,
 } from "lucide-react";
 
 /** 打席結果の選択肢 */
@@ -124,7 +125,7 @@ function emptyPitching(): PitchingInput {
 }
 
 export default function GameInputForm() {
-    const { data, addGame, addPlateAppearances, addPitchingStats, playerNames } = useData();
+    const { data, addGame, updateGame, addPlateAppearances, addPitchingStats, playerNames } = useData();
     const [submitted, setSubmitted] = useState(false);
 
     // 入力モード: "new" (新規試合) | "existing" (既存試合に成績追加)
@@ -138,6 +139,8 @@ export default function GameInputForm() {
     const [scoreFor, setScoreFor] = useState(0);
     const [scoreAgainst, setScoreAgainst] = useState(0);
     const [gameType, setGameType] = useState<GameType>("official");
+    const [imageBase64, setImageBase64] = useState<string>("");
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     // 打席データ
     const [paInputs, setPaInputs] = useState<PAInput[]>([emptyPA()]);
@@ -161,7 +164,52 @@ export default function GameInputForm() {
             setScoreFor(game.scoreFor);
             setScoreAgainst(game.scoreAgainst);
             setGameType(game.gameType);
+            setImageBase64(game.scoreboardImageUrl || "");
         }
+    };
+
+    /** 画像選択・リサイズ処理 */
+    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement("canvas");
+                // 最大幅/高さを1024pxに制限
+                const MAX_SIZE = 1024;
+                let width = img.width;
+                let height = img.height;
+
+                if (width > height) {
+                    if (width > MAX_SIZE) {
+                        height *= MAX_SIZE / width;
+                        width = MAX_SIZE;
+                    }
+                } else {
+                    if (height > MAX_SIZE) {
+                        width *= MAX_SIZE / height;
+                        height = MAX_SIZE;
+                    }
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext("2d");
+                if (ctx) {
+                    ctx.drawImage(img, 0, 0, width, height);
+                    // JPEG/0.7の品質で圧縮
+                    const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
+                    setImageBase64(dataUrl);
+                }
+            };
+            if (event.target?.result) {
+                img.src = event.target.result as string;
+            }
+        };
+        reader.readAsDataURL(file);
     };
 
     /** 打数行追加 */
@@ -211,7 +259,7 @@ export default function GameInputForm() {
 
         const gameId = inputMode === "existing" ? selectedGameId : `game-${Date.now()}`;
 
-        // 新規作成時のみ試合メタデータを追加
+        // 新規作成時のみ試合メタデータを追加、既存の場合はアップデート
         if (inputMode === "new") {
             const game: GameMetadata = {
                 id: gameId,
@@ -221,8 +269,20 @@ export default function GameInputForm() {
                 scoreFor,
                 scoreAgainst,
                 gameType,
+                scoreboardImageUrl: imageBase64 || undefined,
             };
             addGame(game);
+        } else {
+            // 既存試合の画像のみ更新、他の情報はそのまま（フォームの値で上書き可能にする場合などに応じて要調整、今回は画像も更新対象に含める）
+            updateGame(gameId, {
+                date,
+                opponent: opponent.trim(),
+                result,
+                scoreFor,
+                scoreAgainst,
+                gameType,
+                scoreboardImageUrl: imageBase64 || undefined,
+            });
         }
 
         // 打席データ（空の名前は除外）
@@ -270,6 +330,8 @@ export default function GameInputForm() {
             setScoreFor(0);
             setScoreAgainst(0);
             setSelectedGameId("");
+            setImageBase64("");
+            if (fileInputRef.current) fileInputRef.current.value = "";
             setPaInputs([emptyPA()]);
             setPitchingInputs([emptyPitching()]);
         }, 2000);
@@ -410,6 +472,36 @@ export default function GameInputForm() {
                                 </button>
                             ))}
                         </div>
+                    </div>
+
+                    <Separator />
+
+                    <div className="space-y-1.5">
+                        <Label className="text-xs">スコアボード（画像）</Label>
+                        <div className="flex items-center gap-3">
+                            <Button
+                                variant="outline"
+                                onClick={() => fileInputRef.current?.click()}
+                                className="flex-1 border-dashed"
+                            >
+                                <ImageIcon className="h-4 w-4 mr-2" />
+                                {imageBase64 ? "画像を変更" : "画像を選択"}
+                            </Button>
+                            <Input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                ref={fileInputRef}
+                                onChange={handleImageUpload}
+                            />
+                            {imageBase64 && (
+                                <div className="h-10 w-10 relative rounded-md overflow-hidden border">
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img src={imageBase64} alt="アップロードプレビュー" className="absolute inset-0 w-full h-full object-cover" />
+                                </div>
+                            )}
+                        </div>
+                        <p className="text-[10px] text-muted-foreground mt-1">※自動で圧縮して保存されます</p>
                     </div>
                 </CardContent>
             </Card>
