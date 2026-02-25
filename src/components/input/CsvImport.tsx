@@ -38,7 +38,7 @@ const CSV_TYPES: { value: CsvType; label: string; description: string }[] = [
     {
         value: "games",
         label: "試合データ",
-        description: "date, opponent, result, scoreFor, scoreAgainst, gameType",
+        description: "id, date, opponent, result, scoreFor, scoreAgainst, gameType",
     },
     {
         value: "batting",
@@ -62,7 +62,6 @@ export default function CsvImport() {
     const [error, setError] = useState("");
     const [imported, setImported] = useState(false);
     const [importMode, setImportMode] = useState<"add" | "overwrite">("add");
-
     /** ファイル選択時のパース処理 */
     const handleFileChange = useCallback(
         (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -76,6 +75,10 @@ export default function CsvImport() {
             Papa.parse(file, {
                 header: true,
                 skipEmptyLines: true,
+                transformHeader: (header) => {
+                    // Excel等のBOMや余分な空白を除去する
+                    return header.replace(/^\uFEFF/, "").trim();
+                },
                 complete: (results) => {
                     if (results.errors.length > 0) {
                         setError(
@@ -100,55 +103,117 @@ export default function CsvImport() {
         const executeImport = importMode === "add" ? importData : overwriteImportData;
 
         try {
+            // ヘッダーの存在チェック（種類を間違えてインポートしていないか確認）
+            if (preview.length > 0) {
+                const sampleRow = preview[0];
+                const keysStr = Object.keys(sampleRow).join(" ").toLowerCase();
+
+                if (csvType === "games" && (keysStr.includes("inning") || keysStr.includes("rbi") || keysStr.includes("打点") || keysStr.includes("pitch"))) {
+                    alert("【エラー】打撃や投手のエクセルを「試合データ」として読み込もうとしています。上のタブで正しい種類を選択してください！");
+                    return;
+                }
+                if (csvType === "batting" && (keysStr.includes("pitch") || keysStr.includes("strike") || keysStr.includes("球数"))) {
+                    alert("【エラー】投手のエクセルを「打席データ」として読み込もうとしています。上のタブで正しい種類を選択してください！");
+                    return;
+                }
+                if (csvType === "pitching" && (keysStr.includes("rbi") || keysStr.includes("batted") || keysStr.includes("打点"))) {
+                    alert("【エラー】打撃のエクセルを「投手成績」として読み込もうとしています。上のタブで正しい種類を選択してください！");
+                    return;
+                }
+            }
+
+            // より厳密なデータ取得関数
+            const createGetVal = (row: Record<string, string>) => (keywords: string[]) => {
+                const keys = Object.keys(row);
+                // 1. 完全一致（大文字小文字無視）を探す
+                for (const key of keys) {
+                    if (keywords.some(kw => key.toLowerCase() === kw.toLowerCase())) return row[key];
+                }
+                // 2. 前方一致を探す
+                for (const key of keys) {
+                    if (keywords.some(kw => key.toLowerCase().startsWith(kw.toLowerCase()))) return row[key];
+                }
+                // 3. 部分一致を探す
+                for (const key of keys) {
+                    if (keywords.some(kw => key.toLowerCase().includes(kw.toLowerCase()))) return row[key];
+                }
+                return undefined;
+            };
+
             switch (csvType) {
                 case "games": {
-                    const games: GameMetadata[] = preview.map((row, i) => ({
-                        id: `csv-game-${Date.now()}-${i}`,
-                        date: row.date || "",
-                        opponent: row.opponent || "",
-                        result: (row.result as GameResult) || "win",
-                        scoreFor: Number(row.scoreFor) || 0,
-                        scoreAgainst: Number(row.scoreAgainst) || 0,
-                        gameType: (row.gameType as GameType) || "official",
-                    }));
+                    const games: GameMetadata[] = preview.map((row, i) => {
+                        const getVal = createGetVal(row);
+                        return {
+                            id: getVal(["id", "アイディ"]) || `csv-game-${Date.now()}-${i}`,
+                            date: getVal(["date", "日付", "日時"]) || "",
+                            opponent: getVal(["opponent", "相手", "対戦"]) || "",
+                            result: (getVal(["result", "結果", "勝敗"]) as GameResult) || "win",
+                            scoreFor: Number(getVal(["scorefor", "得点", "自チーム得点", "自チーム"])) || 0,
+                            scoreAgainst: Number(getVal(["scoreagainst", "失点", "相手チーム得点", "相手チーム"])) || 0,
+                            gameType: (getVal(["type", "game", "種類", "種別", "gametype"]) as GameType) || "official",
+                        };
+                    });
                     executeImport({ games });
                     break;
                 }
 
                 case "batting": {
-                    const pas: PlateAppearance[] = preview.map((row, i) => ({
-                        id: `csv-pa-${Date.now()}-${i}`,
-                        gameId: row.gameId || "",
-                        playerName: row.playerName || "",
-                        inning: Number(row.inning) || 1,
-                        result: (row.result as AtBatResult) || "single",
-                        battedBallType:
-                            (row.battedBallType as BattedBallType) || undefined,
-                        battedBallDirection:
-                            (row.battedBallDirection as BattedBallDirection) || undefined,
-                        rbi: Number(row.rbi) || 0,
-                        runs: Number(row.runs) || 0,
-                        stolenBases: Number(row.stolenBases) || 0,
-                    }));
+                    const pas: PlateAppearance[] = preview.map((row, i) => {
+                        const getVal = createGetVal(row);
+
+                        // battedBallType と battedBallDirection が同名カラムになってしまった場合の対策
+                        let bType = getVal(["battedballtype", "battedball", "type", "球種"]) || undefined;
+                        let bDir = getVal(["battedballdirection", "direction", "方向"]) || undefined;
+
+                        // もし見つからなかった場合、すべての値を走査して推測する
+                        if (!bType || !bDir) {
+                            for (const key of Object.keys(row)) {
+                                const val = String(row[key] || "").toLowerCase();
+                                if (["grounder", "fly", "liner", "ゴロ", "フライ", "ライナー"].includes(val)) {
+                                    bType = val;
+                                } else if (!isNaN(Number(val)) && Number(val) >= 1 && Number(val) <= 9 && key.toLowerCase().includes("bat")) {
+                                    bDir = val;
+                                }
+                            }
+                        }
+
+                        return {
+                            id: getVal(["id", "アイディ"]) || `csv-pa-${Date.now()}-${i}`,
+                            gameId: getVal(["gameid", "game", "試合"]) || "",
+                            playerName: getVal(["playername", "player", "name", "選手", "名前", "nam"]) || "",
+                            inning: Number(getVal(["inning", "回", "イニング"])) || 1,
+                            result: (getVal(["result", "結果", "res"]) as AtBatResult) || "single",
+                            battedBallType: (bType as BattedBallType) || undefined,
+                            battedBallDirection: (bDir as BattedBallDirection) || undefined,
+                            rbi: Number(getVal(["rbi", "打点"])) || 0,
+                            runs: Number(getVal(["run", "得点"])) || 0,
+                            stolenBases: Number(getVal(["stolenbases", "stolen", "stolenbase", "盗塁"])) || 0,
+                        };
+                    });
                     executeImport({ plateAppearances: pas });
                     break;
                 }
 
                 case "pitching": {
-                    const stats: PitchingStats[] = preview.map((row, i) => ({
-                        id: `csv-pitch-${Date.now()}-${i}`,
-                        gameId: row.gameId || "",
-                        playerName: row.playerName || "",
-                        inningsPitched: Number(row.ip) || 0,
-                        runsAllowed: Number(row.runsAllowed) || 0,
-                        earnedRuns: Number(row.earnedRuns) || 0,
-                        hitsAllowed: Number(row.hits) || 0,
-                        walksAllowed: Number(row.walks) || 0,
-                        strikeouts: Number(row.strikeouts) || 0,
-                        totalPitches: Number(row.totalPitches) || 0,
-                        strikes: Number(row.strikes) || 0,
-                        balls: Number(row.balls) || 0,
-                    }));
+                    const stats: PitchingStats[] = preview.map((row, i) => {
+                        const getVal = createGetVal(row);
+
+                        return {
+                            id: getVal(["id", "アイディ"]) || `csv-pitch-${Date.now()}-${i}`,
+                            gameId: getVal(["gameid", "game", "試合"]) || "",
+                            playerName: getVal(["playername", "player", "name", "選手", "名前", "nam"]) || "",
+                            inningsPitched: Number(getVal(["ip", "inning", "回"])) || 0,
+                            runsAllowed: Number(getVal(["runsallowed", "run", "失点"])) || 0,
+                            earnedRuns: Number(getVal(["earnedruns", "earned", "er", "自責"])) || 0,
+                            hitsAllowed: Number(getVal(["hitsallowed", "hit", "安打", "被安打"])) || 0,
+                            walksAllowed: Number(getVal(["walksallowed", "walk", "bb", "四球", "四死球"])) || 0,
+                            strikeouts: Number(getVal(["strikeout", "so", "k", "三振", "奪三振"])) || 0,
+                            totalPitches: Number(getVal(["totalpitches", "pitch", "球数"])) || 0,
+                            strikes: Number(getVal(["strikes", "strike", "ストライク"]) && !getVal(["strikeout", "so", "k", "三振", "奪三振"]) ? getVal(["strikes", "strike", "ストライク"]) : 0) || 0,
+                            balls: Number(getVal(["balls", "ball", "ボール"])) || 0,
+                        };
+                    });
                     executeImport({ pitchingStats: stats });
                     break;
                 }
@@ -223,7 +288,7 @@ export default function CsvImport() {
         switch (csvType) {
             case "games":
                 csvContent =
-                    "date,opponent,result,scoreFor,scoreAgainst,gameType\n2026-03-01,サンプルチーム,win,5,3,official";
+                    "id,date,opponent,result,scoreFor,scoreAgainst,gameType\ngame-001,2026-03-01,サンプルチーム,win,5,3,official";
                 break;
             case "batting":
                 csvContent =

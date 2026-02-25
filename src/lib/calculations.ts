@@ -67,14 +67,35 @@ export function aggregateBatting(
         playerMap.set(p.name, p);
     }
 
+    // 選手名でグループ化する際、表記揺れ（スペースの有無、名字のみ等）を吸収する
+    const normalizeName = (name: string) => name.replace(/[\s\u3000]/g, "");
+
+    const resolvePlayerName = (paName: string): string => {
+        if (!paName) return "不明";
+        // 1. 完全一致
+        if (playerMap.has(paName)) return paName;
+        // 2. スペース除去で一致確認
+        const normalizedPaName = normalizeName(paName);
+        for (const p of players) {
+            if (normalizeName(p.name) === normalizedPaName) return p.name;
+        }
+        // 3. 名字のみ（前方一致）で確認
+        for (const p of players) {
+            if (normalizeName(p.name).startsWith(normalizedPaName)) return p.name;
+        }
+        return paName; // 一致しなければ元の文字列
+    };
+
     // 選手名でグループ化
     const grouped = new Map<string, PlateAppearance[]>();
 
     for (const pa of plateAppearances) {
         if (playerName && pa.playerName !== playerName) continue;
-        const existing = grouped.get(pa.playerName) || [];
+
+        const resolvedName = resolvePlayerName(pa.playerName);
+        const existing = grouped.get(resolvedName) || [];
         existing.push(pa);
-        grouped.set(pa.playerName, existing);
+        grouped.set(resolvedName, existing);
     }
 
     const results: BattingAggregation[] = [];
@@ -155,15 +176,37 @@ export function aggregateBatting(
  */
 export function aggregatePitching(
     pitchingStats: PitchingStats[],
+    players: Player[] = [],
     playerName?: string
 ): PitchingAggregation[] {
+    const playerMap = new Map<string, Player>();
+    for (const p of players) {
+        playerMap.set(p.name, p);
+    }
+
+    const normalizeName = (name: string) => name.replace(/[\s\u3000]/g, "");
+
+    const resolvePlayerName = (paName: string): string => {
+        if (!paName) return "不明";
+        if (playerMap.has(paName)) return paName;
+        const normalizedPaName = normalizeName(paName);
+        for (const p of players) {
+            if (normalizeName(p.name) === normalizedPaName) return p.name;
+        }
+        for (const p of players) {
+            if (normalizeName(p.name).startsWith(normalizedPaName)) return p.name;
+        }
+        return paName;
+    };
+
     const grouped = new Map<string, PitchingStats[]>();
 
     for (const ps of pitchingStats) {
         if (playerName && ps.playerName !== playerName) continue;
-        const existing = grouped.get(ps.playerName) || [];
+        const resolvedName = resolvePlayerName(ps.playerName);
+        const existing = grouped.get(resolvedName) || [];
         existing.push(ps);
-        grouped.set(ps.playerName, existing);
+        grouped.set(resolvedName, existing);
     }
 
     const results: PitchingAggregation[] = [];
