@@ -41,16 +41,36 @@ function PlayersPageContent() {
     const [selectedPlayer, setSelectedPlayer] = useState(initialPlayer);
     const { data, playerNames } = useData();
 
+    type GameFilter = "all" | "official" | "practice";
+    const [filter, setFilter] = useState<GameFilter>("all");
+
+    // フィルター適用後のデータ
+    const { filteredPA, filteredPitching } = useMemo(() => {
+        let fGames = data.games;
+        if (filter === "official") {
+            fGames = data.games.filter((g) => g.gameType === "official");
+        } else if (filter === "practice") {
+            fGames = data.games.filter((g) => g.gameType === "practice");
+        }
+
+        const filteredGameIds = new Set(fGames.map((g) => g.id));
+
+        return {
+            filteredPA: data.plateAppearances.filter((pa) => filteredGameIds.has(pa.gameId)),
+            filteredPitching: data.pitchingStats.filter((ps) => filteredGameIds.has(ps.gameId)),
+        };
+    }, [data, filter]);
+
     // 全選手の打撃集計
     const allBattingStats = useMemo(
-        () => aggregateBatting(data.plateAppearances, data.players),
-        [data.plateAppearances, data.players]
+        () => aggregateBatting(filteredPA, data.players),
+        [filteredPA, data.players]
     );
 
     // 全選手の投球集計
     const allPitchingStats = useMemo(
-        () => aggregatePitching(data.pitchingStats),
-        [data.pitchingStats]
+        () => aggregatePitching(filteredPitching, data.players),
+        [filteredPitching, data.players]
     );
 
     // 選択された選手のデータ
@@ -69,25 +89,43 @@ function PlayersPageContent() {
         () =>
             selectedPlayer
                 ? calcRecentBattingTrend(
-                    data.plateAppearances,
-                    data.games,
+                    filteredPA,
+                    data.games, // calcRecentBattingTrend は内部でゲーム情報を探すため全ゲームを渡すが、打席はフィルタ済
                     selectedPlayer,
                     5
                 )
                 : [],
-        [data.plateAppearances, data.games, selectedPlayer]
+        [filteredPA, data.games, selectedPlayer]
     );
 
     return (
         <div className="space-y-6">
-            {/* ヘッダー */}
-            <div className="animate-fade-in-up">
-                <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
-                    選手成績
-                </h1>
-                <p className="text-xs text-muted-foreground mt-1">
-                    選手を選択して詳細な成績とアドバンスド指標を確認
-                </p>
+            {/* ヘッダーとフィルター */}
+            <div className="animate-fade-in-up flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                    <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
+                        選手成績
+                    </h1>
+                    <p className="text-xs text-muted-foreground mt-1">
+                        選手を選択して詳細な成績を確認
+                    </p>
+                </div>
+
+                {/* フィルタータブ */}
+                <div className="flex bg-muted/50 p-1 rounded-xl w-full sm:w-auto">
+                    {(["all", "official", "practice"] as GameFilter[]).map((f) => (
+                        <button
+                            key={f}
+                            onClick={() => setFilter(f)}
+                            className={`flex-1 sm:px-6 py-2 rounded-lg text-sm font-semibold transition-all duration-300 ${filter === f
+                                    ? "bg-white dark:bg-zinc-800 text-emerald-600 dark:text-emerald-400 shadow-sm"
+                                    : "text-muted-foreground hover:bg-black/5 dark:hover:bg-white/5"
+                                }`}
+                        >
+                            {f === "all" ? "すべて" : f === "official" ? "公式戦" : "練習試合"}
+                        </button>
+                    ))}
+                </div>
             </div>
 
             {/* 選手選択 */}
