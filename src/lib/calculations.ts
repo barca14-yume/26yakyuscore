@@ -212,7 +212,10 @@ export function aggregatePitching(
     const results: PitchingAggregation[] = [];
 
     for (const [name, stats] of grouped) {
-        const totalIP = stats.reduce((sum, s) => sum + s.inningsPitched, 0);
+        // 全アウト数を計算してから投球回数表記に戻す
+        const totalOuts = stats.reduce((sum, s) => sum + inningsToOuts(s.inningsPitched), 0);
+        const totalIP = outsToInnings(totalOuts);
+
         const totalER = stats.reduce((sum, s) => sum + s.earnedRuns, 0);
         const totalRuns = stats.reduce((sum, s) => sum + s.runsAllowed, 0);
         const totalHits = stats.reduce((sum, s) => sum + s.hitsAllowed, 0);
@@ -222,8 +225,8 @@ export function aggregatePitching(
         const totalStrikes = stats.reduce((sum, s) => sum + s.strikes, 0);
         const totalBalls = stats.reduce((sum, s) => sum + s.balls, 0);
 
-        // 防御率（少年野球7回制）
-        const era = totalIP > 0 ? (totalER * 7) / totalIP : 0;
+        // 防御率（少年野球7回制、アウトベースで正確に計算する）
+        const era = totalOuts > 0 ? (totalER * 7 * 3) / totalOuts : 0;
 
         // ストライク率
         const strikePercentage = totalPitches > 0 ? (totalStrikes / totalPitches) * 100 : 0;
@@ -258,12 +261,30 @@ export function calcTeamBattingAvg(plateAppearances: PlateAppearance[]): number 
 }
 
 /**
+ * 投球回数（0.1 = 1/3回、0.2 = 2/3回）をアウト数に変換する
+ */
+export const inningsToOuts = (ip: number): number => {
+    const fullInnings = Math.floor(ip);
+    const fraction = Math.round((ip - fullInnings) * 10);
+    return fullInnings * 3 + fraction;
+};
+
+/**
+ * アウト数を投球回数表記に戻す（例: 4アウト -> 1.1）
+ */
+export const outsToInnings = (outs: number): number => {
+    const fullInnings = Math.floor(outs / 3);
+    const fraction = outs % 3;
+    return fullInnings + fraction / 10;
+};
+
+/**
  * チームERA（少年野球7回制）
  */
 export function calcTeamERA(pitchingStats: PitchingStats[]): number {
-    const totalIP = pitchingStats.reduce((sum, s) => sum + s.inningsPitched, 0);
+    const totalOuts = pitchingStats.reduce((sum, s) => sum + inningsToOuts(s.inningsPitched), 0);
     const totalER = pitchingStats.reduce((sum, s) => sum + s.earnedRuns, 0);
-    return totalIP > 0 ? (totalER * 7) / totalIP : 0;
+    return totalOuts > 0 ? (totalER * 7 * 3) / totalOuts : 0;
 }
 
 /**
