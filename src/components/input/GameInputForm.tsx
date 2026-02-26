@@ -22,6 +22,7 @@ import {
     GameResult,
     GameType,
 } from "@/lib/types";
+import { getDisplayName } from "@/lib/utils";
 
 import {
     Plus,
@@ -557,7 +558,7 @@ export default function GameInputForm() {
                                         <option value="">選択...</option>
                                         {playerNames.map((name) => (
                                             <option key={name} value={name}>
-                                                {name}
+                                                {getDisplayName(name, playerNames)}
                                             </option>
                                         ))}
                                     </select>
@@ -756,7 +757,7 @@ export default function GameInputForm() {
                                             <option value="">選択...</option>
                                             {playerNames.map((name) => (
                                                 <option key={name} value={name}>
-                                                    {name}
+                                                    {getDisplayName(name, playerNames)}
                                                 </option>
                                             ))}
                                         </select>

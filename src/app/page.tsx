@@ -25,6 +25,15 @@ export default function DashboardPage() {
 
   // フィルター適用後のデータ
   const { filteredGames, filteredPA, filteredPitching } = useMemo(() => {
+    if (filter === "all") {
+      // "すべて"の場合は孤立データも合算する
+      return {
+        filteredGames: data.games,
+        filteredPA: data.plateAppearances,
+        filteredPitching: data.pitchingStats,
+      };
+    }
+
     let fGames = data.games;
     if (filter === "official") {
       fGames = data.games.filter(g => g.gameType === "official");

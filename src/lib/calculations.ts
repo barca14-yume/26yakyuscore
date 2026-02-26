@@ -67,27 +67,70 @@ export function aggregateBatting(
         playerMap.set(p.name, p);
     }
 
-    // 選手名でグループ化する際、表記揺れ（スペースの有無、名字のみ等）を吸収する
-    const normalizeName = (name: string) => name.replace(/[\s\u3000]/g, "");
+    // 選手名でグループ化する際、表記揺れ（スペースの有無、異体字など）を吸収する
+    const normalizeName = (name: string) => {
+        if (!name) return "";
+        return name
+            .replace(/[\s\u3000]/g, "")
+            .replace(/澤/g, "沢")
+            .replace(/髙/g, "高")
+            .replace(/﨑|崎/g, "崎")
+            .replace(/齊|齋/g, "斉")
+            .replace(/邊|邉/g, "辺")
+            .replace(/廣/g, "広")
+            .replace(/嶋/g, "島")
+            .replace(/櫻/g, "桜")
+            .replace(/濱/g, "浜")
+            .replace(/瀧/g, "滝")
+            .replace(/國/g, "国")
+            .replace(/彌/g, "弥")
+            .replace(/眞|真/g, "真");
+    };
 
     const resolvePlayerName = (paName: string): string => {
         if (!paName) return "不明";
-        // 1. 完全一致
-        if (playerMap.has(paName)) return paName;
-        // 2. スペース除去で一致確認
-        const normalizedPaName = normalizeName(paName);
-        for (const p of players) {
-            if (normalizeName(p.name) === normalizedPaName) return p.name;
+        const resolved = (() => {
+            // 1. 完全一致
+            if (playerMap.has(paName)) return paName;
+
+            const normalizedPaName = normalizeName(paName);
+            if (!normalizedPaName) return paName; // <-- Safety check: if PA name is only spaces, don't fuzzy map
+
+            for (const p of players) {
+                if (normalizeName(p.name) === normalizedPaName) return p.name;
+            }
+            // 3. 前方一致（双方向）
+            for (const p of players) {
+                const normalizedPName = normalizeName(p.name);
+                if (!normalizedPName) continue; // <-- Safety check: if master name is empty, don't hijack matches
+                if (normalizedPName.startsWith(normalizedPaName) || normalizedPaName.startsWith(normalizedPName)) {
+                    return p.name;
+                }
+            }
+            // 4. 部分一致（名字のみ入力などのケース）
+            for (const p of players) {
+                const normalizedPName = normalizeName(p.name);
+                if (!normalizedPName) continue; // <-- Safety check
+                if (normalizedPName.includes(normalizedPaName) || normalizedPaName.includes(normalizedPName)) {
+                    return p.name;
+                }
+            }
+            return paName; // 一致しなければ元の文字列
+        })();
+
+        if (paName.includes("米") || paName.includes("沢") || paName.includes("澤")) {
+            console.log(`[DEBUG resolvePlayerName] paName: "${paName}" -> resolved: "${resolved}"`);
         }
-        // 3. 名字のみ（前方一致）で確認
-        for (const p of players) {
-            if (normalizeName(p.name).startsWith(normalizedPaName)) return p.name;
-        }
-        return paName; // 一致しなければ元の文字列
+        return resolved;
     };
 
     // 選手名でグループ化
     const grouped = new Map<string, PlateAppearance[]>();
+
+    // まず全選手を初期化（成績が0でも表示されるようにする）
+    for (const p of players) {
+        grouped.set(p.name, []);
+    }
 
     for (const pa of plateAppearances) {
         if (playerName && pa.playerName !== playerName) continue;
@@ -184,22 +227,58 @@ export function aggregatePitching(
         playerMap.set(p.name, p);
     }
 
-    const normalizeName = (name: string) => name.replace(/[\s\u3000]/g, "");
+    const normalizeName = (name: string) => {
+        if (!name) return "";
+        return name
+            .replace(/[\s\u3000]/g, "")
+            .replace(/澤/g, "沢")
+            .replace(/髙/g, "高")
+            .replace(/﨑|崎/g, "崎")
+            .replace(/齊|齋/g, "斉")
+            .replace(/邊|邉/g, "辺")
+            .replace(/廣/g, "広")
+            .replace(/嶋/g, "島")
+            .replace(/櫻/g, "桜")
+            .replace(/濱/g, "浜")
+            .replace(/瀧/g, "滝")
+            .replace(/國/g, "国")
+            .replace(/彌/g, "弥")
+            .replace(/眞|真/g, "真");
+    };
 
     const resolvePlayerName = (paName: string): string => {
         if (!paName) return "不明";
         if (playerMap.has(paName)) return paName;
+
         const normalizedPaName = normalizeName(paName);
+        if (!normalizedPaName) return paName;
+
         for (const p of players) {
             if (normalizeName(p.name) === normalizedPaName) return p.name;
         }
         for (const p of players) {
-            if (normalizeName(p.name).startsWith(normalizedPaName)) return p.name;
+            const normalizedPName = normalizeName(p.name);
+            if (!normalizedPName) continue;
+            if (normalizedPName.startsWith(normalizedPaName) || normalizedPaName.startsWith(normalizedPName)) {
+                return p.name;
+            }
+        }
+        for (const p of players) {
+            const normalizedPName = normalizeName(p.name);
+            if (!normalizedPName) continue;
+            if (normalizedPName.includes(normalizedPaName) || normalizedPaName.includes(normalizedPName)) {
+                return p.name;
+            }
         }
         return paName;
     };
 
     const grouped = new Map<string, PitchingStats[]>();
+
+    // まず全選手を初期化（成績が0でも集計に含める）
+    for (const p of players) {
+        grouped.set(p.name, []);
+    }
 
     for (const ps of pitchingStats) {
         if (playerName && ps.playerName !== playerName) continue;

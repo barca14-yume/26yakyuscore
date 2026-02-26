@@ -9,6 +9,8 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BattingAggregation } from "@/lib/types";
 import { BarChart3, ChevronRight } from "lucide-react";
+import { useData } from "@/lib/data-context";
+import { getDisplayName } from "@/lib/utils";
 
 interface TeamOverviewProps {
     battingStats: BattingAggregation[];
@@ -16,6 +18,7 @@ interface TeamOverviewProps {
 }
 
 export default function TeamOverview({ battingStats, limit = 8 }: TeamOverviewProps) {
+    const { playerNames } = useData();
     const topBatters = battingStats.slice(0, limit);
     const maxAvg = topBatters.length > 0 ? Math.max(...topBatters.map((b) => b.avg)) : 1;
 
@@ -55,7 +58,7 @@ export default function TeamOverview({ battingStats, limit = 8 }: TeamOverviewPr
                             {/* 選手名と打率バー */}
                             <div className="flex-1 min-w-0">
                                 <p className="text-sm font-medium truncate">
-                                    {batter.playerName}
+                                    {getDisplayName(batter.playerName, playerNames)}
                                 </p>
                                 <div className="mt-1 h-1.5 w-full bg-muted rounded-full overflow-hidden">
                                     <div

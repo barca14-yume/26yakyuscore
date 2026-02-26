@@ -15,6 +15,7 @@ import {
     aggregatePitching,
     calcRecentBattingTrend,
 } from "@/lib/calculations";
+import { getDisplayName } from "@/lib/utils";
 
 import BattingBreakdown from "@/components/player/BattingBreakdown";
 import TrendChart from "@/components/player/TrendChart";
@@ -46,6 +47,14 @@ function PlayersPageContent() {
 
     // フィルター適用後のデータ
     const { filteredPA, filteredPitching } = useMemo(() => {
+        if (filter === "all") {
+            // "すべて"の場合は孤立データ(gameIdが存在しない等)も救済して全件合算
+            return {
+                filteredPA: data.plateAppearances,
+                filteredPitching: data.pitchingStats,
+            };
+        }
+
         let fGames = data.games;
         if (filter === "official") {
             fGames = data.games.filter((g) => g.gameType === "official");
@@ -118,8 +127,8 @@ function PlayersPageContent() {
                             key={f}
                             onClick={() => setFilter(f)}
                             className={`flex-1 sm:px-6 py-2 rounded-lg text-sm font-semibold transition-all duration-300 ${filter === f
-                                    ? "bg-white dark:bg-zinc-800 text-emerald-600 dark:text-emerald-400 shadow-sm"
-                                    : "text-muted-foreground hover:bg-black/5 dark:hover:bg-white/5"
+                                ? "bg-white dark:bg-zinc-800 text-emerald-600 dark:text-emerald-400 shadow-sm"
+                                : "text-muted-foreground hover:bg-black/5 dark:hover:bg-white/5"
                                 }`}
                         >
                             {f === "all" ? "すべて" : f === "official" ? "公式戦" : "練習試合"}
@@ -168,7 +177,7 @@ function PlayersPageContent() {
                                                 : "text-muted-foreground"
                                                 }`}
                                         >
-                                            {name.split(" ")[0]}
+                                            {getDisplayName(name, playerNames)}
                                         </span>
                                         {stats && (
                                             <span className="text-[10px] tabular-nums text-muted-foreground">
@@ -272,7 +281,7 @@ function PlayersPageContent() {
                     <TrendChart data={trendData} playerAvg={playerBatting.avg} />
 
                     {/* 投手成績（投手の場合） */}
-                    {playerPitching && (
+                    {playerPitching && playerPitching.games > 0 && (
                         <>
                             <Separator className="my-2" />
                             <Card className="border-border/50 shadow-sm">
