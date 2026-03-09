@@ -71,6 +71,7 @@ const DIRECTION_OPTIONS: { value: BattedBallDirection; label: string }[] = [
 
 /** 打席入力1行分の型 */
 interface PAInput {
+    id?: string;
     playerName: string;
     inning: number;
     result: AtBatResult;
@@ -83,6 +84,7 @@ interface PAInput {
 
 /** 投手入力の型 */
 interface PitchingInput {
+    id?: string;
     playerName: string;
     inningsPitched: number;
     runsAllowed: number;
@@ -126,7 +128,7 @@ function emptyPitching(): PitchingInput {
 }
 
 export default function GameInputForm() {
-    const { data, addGame, updateGame, addPlateAppearances, addPitchingStats, playerNames } = useData();
+    const { data, addGame, updateGame, replaceGameStats, addPlateAppearances, addPitchingStats, playerNames } = useData();
     const [submitted, setSubmitted] = useState(false);
 
     // 入力モード: "new" (新規試合) | "existing" (既存試合に成績追加)
@@ -166,6 +168,46 @@ export default function GameInputForm() {
             setScoreAgainst(game.scoreAgainst);
             setGameType(game.gameType);
             setImageBase64(game.scoreboardImageUrl || "");
+
+            // 既存の成績を読み込む
+            const existingPas = data.plateAppearances.filter(pa => pa.gameId === id);
+            if (existingPas.length > 0) {
+                setPaInputs(existingPas.map(pa => ({
+                    id: pa.id,
+                    playerName: pa.playerName,
+                    inning: pa.inning,
+                    result: pa.result,
+                    battedBallType: pa.battedBallType || "",
+                    battedBallDirection: pa.battedBallDirection || "",
+                    rbi: pa.rbi,
+                    runs: pa.runs,
+                    stolenBases: pa.stolenBases,
+                })));
+            } else {
+                setPaInputs([emptyPA()]);
+            }
+
+            const existingPitching = data.pitchingStats.filter(p => p.gameId === id);
+            if (existingPitching.length > 0) {
+                setPitchingInputs(existingPitching.map(p => ({
+                    id: p.id,
+                    playerName: p.playerName,
+                    inningsPitched: p.inningsPitched,
+                    runsAllowed: p.runsAllowed,
+                    earnedRuns: p.earnedRuns,
+                    hitsAllowed: p.hitsAllowed,
+                    walksAllowed: p.walksAllowed,
+                    strikeouts: p.strikeouts,
+                    totalPitches: p.totalPitches,
+                    strikes: p.strikes,
+                    balls: p.balls,
+                })));
+            } else {
+                setPitchingInputs([emptyPitching()]);
+            }
+        } else {
+            setPaInputs([emptyPA()]);
+            setPitchingInputs([emptyPitching()]);
         }
     };
 
@@ -290,7 +332,7 @@ export default function GameInputForm() {
         const pas: PlateAppearance[] = paInputs
             .filter((pa) => pa.playerName.trim())
             .map((pa, i) => ({
-                id: `pa-${Date.now()}-${i}`,
+                id: pa.id || `pa-${Date.now()}-${i}`,
                 gameId,
                 playerName: pa.playerName.trim(),
                 inning: pa.inning,
@@ -306,7 +348,7 @@ export default function GameInputForm() {
         const pitching: PitchingStats[] = pitchingInputs
             .filter((p) => p.playerName.trim())
             .map((p, i) => ({
-                id: `pitch-${Date.now()}-${i}`,
+                id: p.id || `pitch-${Date.now()}-${i}`,
                 gameId,
                 playerName: p.playerName.trim(),
                 inningsPitched: p.inningsPitched,
@@ -320,8 +362,12 @@ export default function GameInputForm() {
                 balls: p.balls,
             }));
 
-        if (pas.length > 0) addPlateAppearances(pas);
-        if (pitching.length > 0) addPitchingStats(pitching);
+        if (inputMode === "new") {
+            if (pas.length > 0) addPlateAppearances(pas);
+            if (pitching.length > 0) addPitchingStats(pitching);
+        } else {
+            replaceGameStats(gameId, pas, pitching);
+        }
 
         setSubmitted(true);
         setTimeout(() => {

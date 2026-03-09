@@ -25,6 +25,8 @@ interface DataContextType {
     addPitchingStats: (stats: PitchingStats[]) => void;
     importData: (newData: Partial<AppData>) => void;
     overwriteImportData: (newData: Partial<AppData>) => void;
+    /** 指定した試合のすべての打席・投手成績を上書き（既存成績の編集用） */
+    replaceGameStats: (gameId: string, pas: PlateAppearance[], pitchingStats: PitchingStats[]) => void;
     /** 選手を追加 */
     addPlayers: (players: Player[]) => void;
     /** 選手を更新 */
@@ -151,6 +153,21 @@ export function DataProvider({ children }: { children: ReactNode }) {
         }));
     }, []);
 
+    /** 指定した試合のすべての打席・投手成績を上書き（既存成績の編集用） */
+    const replaceGameStats = useCallback((gameId: string, pas: PlateAppearance[], pitching: PitchingStats[]) => {
+        setData((prev) => ({
+            ...prev,
+            plateAppearances: [
+                ...prev.plateAppearances.filter((pa) => pa.gameId !== gameId),
+                ...pas,
+            ],
+            pitchingStats: [
+                ...prev.pitchingStats.filter((p) => p.gameId !== gameId),
+                ...pitching,
+            ],
+        }));
+    }, []);
+
     /** 選手を追加（重複名チェック付き） */
     const addPlayers = useCallback((newPlayers: Player[]) => {
         setData((prev) => {
@@ -226,6 +243,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
                 addPitchingStats,
                 importData,
                 overwriteImportData,
+                replaceGameStats,
                 addPlayers,
                 updatePlayer,
                 removePlayer,

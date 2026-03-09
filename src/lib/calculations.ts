@@ -160,12 +160,23 @@ export function aggregateBatting(
         // 打率 = 安打 / 打数
         const avg = atBats.length > 0 ? hits.length / atBats.length : 0;
 
-        // 出塁率 = (安打 + 四死球) / (打数 + 四死球 + 犠飛)
+        // 出塁率 = (安打 + 四死球) / (打数 + 四死球 + 犠飛) ※今回は犠飛(sacrifice)を含めて計算
         const obpDenominator = atBats.length + walks.length + hbp.length + sacrifices.length;
         const obp =
             obpDenominator > 0
                 ? (hits.length + walks.length + hbp.length) / obpDenominator
                 : 0;
+
+        // 長打率 = (単打 + 二塁打*2 + 三塁打*3 + 本塁打*4) / 打数
+        const totalBases =
+            (hits.length - doubles.length - triples.length - homeruns.length) +
+            doubles.length * 2 +
+            triples.length * 3 +
+            homeruns.length * 4;
+        const slg = atBats.length > 0 ? totalBases / atBats.length : 0;
+
+        // OPS = 出塁率 + 長打率
+        const ops = obp + slg;
 
         // 打球方向分布 (1-9の守備位置から プル/センター/オポジット に変換)
         const directionBreakdown = { pull: 0, center: 0, opposite: 0 };
@@ -204,6 +215,8 @@ export function aggregateBatting(
             stolenBases: totalStolenBases,
             avg,
             obp,
+            slg,
+            ops,
             directionBreakdown,
             battedBallBreakdown,
         });

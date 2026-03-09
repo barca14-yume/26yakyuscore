@@ -237,6 +237,11 @@ function PlayersPageContent() {
                                             .padStart(3, "0")}`,
                                         highlight: true,
                                     },
+                                    {
+                                        label: "OPS",
+                                        value: playerBatting.ops.toFixed(3),
+                                        highlight: true,
+                                    },
                                     { label: "打点", value: `${playerBatting.rbi}` },
                                     { label: "得点", value: `${playerBatting.runs}`, highlight: true },
                                     { label: "盗塁", value: `${playerBatting.stolenBases}`, highlight: true },

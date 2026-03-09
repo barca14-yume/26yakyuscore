@@ -108,6 +108,8 @@ export interface BattingAggregation {
     stolenBases: number;
     avg: number;
     obp: number;
+    slg: number;
+    ops: number;
     /** 打球方向分布 */
     directionBreakdown: {
         pull: number;
