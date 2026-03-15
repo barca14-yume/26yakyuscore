@@ -151,7 +151,7 @@ export function aggregateBatting(
         const homeruns = appearances.filter((pa) => pa.result === "homerun");
         const walks = appearances.filter((pa) => pa.result === "walk");
         const hbp = appearances.filter((pa) => pa.result === "hbp");
-        const strikeouts = appearances.filter((pa) => pa.result === "strikeout");
+        const strikeouts = appearances.filter((pa) => ["strikeout", "strikeout_swinging", "strikeout_looking"].includes(pa.result));
         const sacrifices = appearances.filter((pa) => pa.result === "sacrifice");
         const totalRbi = appearances.reduce((sum, pa) => sum + pa.rbi, 0);
         const totalRuns = appearances.reduce((sum, pa) => sum + (pa.runs || 0), 0);

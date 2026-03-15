@@ -42,11 +42,11 @@ const AT_BAT_OPTIONS: { value: AtBatResult; label: string }[] = [
     { value: "homerun", label: "本塁打" },
     { value: "walk", label: "四球" },
     { value: "hbp", label: "死球" },
-    { value: "strikeout", label: "三振" },
-    { value: "groundout", label: "ゴロ" },
-    { value: "flyout", label: "フライ" },
     { value: "error", label: "エラー" },
-    { value: "sacrifice", label: "犠打" },
+    { value: "sacrifice", label: "犠打・犠飛" },
+    { value: "out", label: "アウト" },
+    { value: "strikeout_swinging", label: "空振三振" },
+    { value: "strikeout_looking", label: "見逃三振" },
 ];
 
 /** 打球タイプ選択肢 */
@@ -142,8 +142,12 @@ export default function GameInputForm() {
     const [scoreFor, setScoreFor] = useState(0);
     const [scoreAgainst, setScoreAgainst] = useState(0);
     const [gameType, setGameType] = useState<GameType>("official");
+    const [officialGameName, setOfficialGameName] = useState("");
     const [imageBase64, setImageBase64] = useState<string>("");
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // スタメンデータ (1番~9番以上、空文字可)
+    const [startingLineup, setStartingLineup] = useState<string[]>(Array(9).fill(""));
 
     // 打席データ
     const [paInputs, setPaInputs] = useState<PAInput[]>([emptyPA()]);
@@ -167,6 +171,7 @@ export default function GameInputForm() {
             setScoreFor(game.scoreFor);
             setScoreAgainst(game.scoreAgainst);
             setGameType(game.gameType);
+            setOfficialGameName(game.officialGameName || "");
             setImageBase64(game.scoreboardImageUrl || "");
 
             // 既存の成績を読み込む
@@ -256,7 +261,72 @@ export default function GameInputForm() {
     };
 
     /** 打数行追加 */
-    const addPARow = () => setPaInputs((prev) => [...prev, emptyPA()]);
+    const addPARow = () => {
+        setPaInputs((prev) => {
+            const lastPA = prev[prev.length - 1];
+            let nextPlayerName = "";
+            let nextInning = 1;
+
+            if (lastPA) {
+                // インニングは最後の打席を継承し、もし3アウトなら次のイニングへ
+                const currentInning = lastPA.inning;
+                const paInThisInning = prev.filter((pa) => pa.inning === currentInning);
+                const outsInThisInning = paInThisInning.reduce((outs, pa) => {
+                    if (["out", "strikeout_swinging", "strikeout_looking", "strikeout", "groundout", "flyout", "sacrifice"].includes(pa.result)) {
+                        return outs + 1;
+                    }
+                    return outs;
+                }, 0);
+
+                if (outsInThisInning >= 3) {
+                    nextInning = currentInning + 1;
+                } else {
+                    nextInning = currentInning;
+                }
+
+                // スタメンから次の打者を探す
+                if (lastPA.playerName) {
+                    let lastKnownIndex = -1;
+
+                    // 直前の打者がスタメンにいるか確認
+                    lastKnownIndex = startingLineup.indexOf(lastPA.playerName);
+
+                    // 有効なスタメンの人数を計算（末尾の空欄を無視）
+                    let activeLineupSize = startingLineup.length;
+                    for (let i = startingLineup.length - 1; i >= 0; i--) {
+                        if (startingLineup[i].trim() !== "") {
+                            activeLineupSize = i + 1;
+                            break;
+                        }
+                    }
+                    if (activeLineupSize === 0) activeLineupSize = 1;
+
+                    // 直前の打者がスタメンにいない（代打等）場合、過去の打席をさかのぼってスタメンを探す
+                    if (lastKnownIndex === -1) {
+                        for (let i = prev.length - 2; i >= 0; i--) {
+                            const pastIdx = startingLineup.indexOf(prev[i].playerName);
+                            if (pastIdx !== -1) {
+                                // 見つかった場合は、その選手から数えて（現在の打席数 - 過去の打席数）分進んだ打順とみなす
+                                lastKnownIndex = (pastIdx + (prev.length - 1 - i)) % activeLineupSize;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (lastKnownIndex !== -1) {
+                        // 次の打者のインデックス（最後まで行ったら1番に戻る）
+                        const nextIndex = (lastKnownIndex + 1) % activeLineupSize;
+                        nextPlayerName = startingLineup[nextIndex] || "";
+                    }
+                }
+            } else if (startingLineup[0]) {
+                // 最初の打席なら1番バッター
+                nextPlayerName = startingLineup[0];
+            }
+
+            return [...prev, { ...emptyPA(), inning: nextInning, playerName: nextPlayerName }];
+        });
+    };
 
     /** 打席行削除 */
     const removePARow = (index: number) => {
@@ -312,6 +382,7 @@ export default function GameInputForm() {
                 scoreFor,
                 scoreAgainst,
                 gameType,
+                officialGameName: gameType === "official" ? officialGameName.trim() : undefined,
                 scoreboardImageUrl: imageBase64 || undefined,
             };
             addGame(game);
@@ -324,6 +395,7 @@ export default function GameInputForm() {
                 scoreFor,
                 scoreAgainst,
                 gameType,
+                officialGameName: gameType === "official" ? officialGameName.trim() : undefined,
                 scoreboardImageUrl: imageBase64 || undefined,
             });
         }
@@ -376,9 +448,11 @@ export default function GameInputForm() {
             setOpponent("");
             setScoreFor(0);
             setScoreAgainst(0);
+            setOfficialGameName("");
             setSelectedGameId("");
             setImageBase64("");
             if (fileInputRef.current) fileInputRef.current.value = "";
+            setStartingLineup(Array(9).fill(""));
             setPaInputs([emptyPA()]);
             setPitchingInputs([emptyPitching()]);
         }, 2000);
@@ -521,6 +595,19 @@ export default function GameInputForm() {
                         </div>
                     </div>
 
+                    {gameType === "official" && (
+                        <div className="space-y-1.5 animate-fade-in-up transition-all duration-300">
+                            <Label className="text-xs">大会名（フリー記述）</Label>
+                            <Input
+                                placeholder="例：秋季大会 1回戦"
+                                value={officialGameName}
+                                onChange={(e) => setOfficialGameName(e.target.value)}
+                                disabled={inputMode === "existing"}
+                                className="h-9 text-sm disabled:opacity-70 disabled:bg-muted"
+                            />
+                        </div>
+                    )}
+
                     <Separator />
 
                     <div className="space-y-1.5">
@@ -553,6 +640,71 @@ export default function GameInputForm() {
                 </CardContent>
             </Card>
 
+            {/* スタメン（打順）登録 */}
+            <Card className="border-border/50 shadow-sm">
+                <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center justify-between">
+                        <span>スターティングメンバー（打順）</span>
+                        <div className="flex gap-2">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setStartingLineup((prev) => [...prev, ""])}
+                            >
+                                <Plus className="h-3.5 w-3.5 mr-1" />
+                                打順追加
+                            </Button>
+                            {startingLineup.length > 9 && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setStartingLineup((prev) => prev.slice(0, prev.length - 1))}
+                                    className="text-red-500 hover:text-red-600"
+                                >
+                                    <Trash2 className="h-3.5 w-3.5 mr-1" />
+                                    削除
+                                </Button>
+                            )}
+                        </div>
+                    </CardTitle>
+                    <p className="text-xs text-muted-foreground">
+                        ここで打順を登録しておくと、打席入力時に自動で次の打者がセットされます。
+                    </p>
+                </CardHeader>
+                <CardContent>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                        {startingLineup.map((player, index) => (
+                            <div key={index} className="space-y-1.5 flex items-center gap-2">
+                                <Label className="text-xs font-medium w-8 text-center shrink-0">
+                                    {index + 1}番
+                                </Label>
+                                <select
+                                    value={player}
+                                    onChange={(e) => {
+                                        const newLineup = [...startingLineup];
+                                        newLineup[index] = e.target.value;
+                                        setStartingLineup(newLineup);
+
+                                        // 最初の打席の選手名が空なら、1番バッターをセットする
+                                        if (index === 0 && paInputs.length === 1 && !paInputs[0].playerName) {
+                                            updatePA(0, "playerName", e.target.value);
+                                        }
+                                    }}
+                                    className="flex-1 h-9 rounded-md border border-input bg-background px-2 text-sm"
+                                >
+                                    <option value="">選択...</option>
+                                    {playerNames.map((name) => (
+                                        <option key={name} value={name}>
+                                            {getDisplayName(name, playerNames)}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        ))}
+                    </div>
+                </CardContent>
+            </Card>
+
             {/* 打席データ */}
             <Card className="border-border/50 shadow-sm">
                 <CardHeader className="pb-3">
@@ -563,10 +715,6 @@ export default function GameInputForm() {
                                 {paInputs.length}件
                             </Badge>
                         </CardTitle>
-                        <Button variant="outline" size="sm" onClick={addPARow}>
-                            <Plus className="h-3.5 w-3.5 mr-1" />
-                            追加
-                        </Button>
                     </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
@@ -736,6 +884,12 @@ export default function GameInputForm() {
                             </div>
                         </div>
                     ))}
+                    <div className="pt-2 flex justify-center">
+                        <Button variant="outline" size="sm" onClick={addPARow} className="w-full max-w-xs border-dashed text-emerald-600 border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 dark:border-emerald-800 dark:hover:bg-emerald-900/50 dark:hover:text-emerald-400">
+                            <Plus className="h-4 w-4 mr-1" />
+                            次の打席を追加
+                        </Button>
+                    </div>
                 </CardContent>
             </Card>
 

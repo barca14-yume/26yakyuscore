@@ -46,8 +46,11 @@ function getResultBadge(result: GameMetadata["result"]) {
 }
 
 /** 試合タイプのラベル */
-function getGameTypeLabel(type: GameMetadata["gameType"]) {
-    return type === "official" ? "公式戦" : "練習試合";
+function getGameTypeLabel(game: GameMetadata) {
+    if (game.gameType === "official") {
+        return game.officialGameName ? `公式戦 (${game.officialGameName})` : "公式戦";
+    }
+    return "練習試合";
 }
 
 export default function RecentGames({ games, limit = 5 }: RecentGamesProps) {
@@ -118,7 +121,7 @@ export default function RecentGames({ games, limit = 5 }: RecentGamesProps) {
                                         {game.date}
                                     </span>
                                     <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                                        {getGameTypeLabel(game.gameType)}
+                                        {getGameTypeLabel(game)}
                                     </span>
                                 </div>
                             </div>

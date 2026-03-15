@@ -39,6 +39,8 @@ interface DataContextType {
     resetData: () => void;
     /** データをすべて空にする（新規スタート用） */
     clearAllData: () => void;
+    /** 試合データに紐づかない孤立した打席・投手データを一括削除する */
+    cleanOrphanData: () => void;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -221,6 +223,21 @@ export function DataProvider({ children }: { children: ReactNode }) {
         });
     }, []);
 
+    /** 試合データに紐づかない孤立したデータを一括削除する */
+    const cleanOrphanData = useCallback(() => {
+        setData((prev) => {
+            const validGameIds = new Set(prev.games.map((g) => g.id));
+            const validPas = prev.plateAppearances.filter((pa) => validGameIds.has(pa.gameId));
+            const validPitching = prev.pitchingStats.filter((ps) => validGameIds.has(ps.gameId));
+            
+            return {
+                ...prev,
+                plateAppearances: validPas,
+                pitchingStats: validPitching,
+            };
+        });
+    }, []);
+
     if (!isLoaded) {
         return (
             <div className="flex h-screen items-center justify-center bg-background">
@@ -250,6 +267,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
                 setPlayers,
                 resetData,
                 clearAllData,
+                cleanOrphanData,
             }}
         >
             {children}

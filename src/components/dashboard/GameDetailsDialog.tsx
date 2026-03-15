@@ -130,7 +130,11 @@ export function GameDetailsDialog({ game, open, onOpenChange }: GameDetailsDialo
                         <div className="flex items-center gap-2 text-sm text-muted-foreground font-normal">
                             <Calendar className="h-4 w-4" />
                             <span>{game.date}</span>
-                            <Badge variant="outline" className="text-xs ml-2">{gameTypeLabel}</Badge>
+                            <Badge variant="outline" className="text-xs ml-2">
+                                {game.gameType === "official" && game.officialGameName
+                                    ? `公式戦 (${game.officialGameName})`
+                                    : gameTypeLabel}
+                            </Badge>
                         </div>
                         <div className="flex items-center gap-3 text-2xl">
                             <Swords className="h-6 w-6 text-primary" />

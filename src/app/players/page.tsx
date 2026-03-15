@@ -19,6 +19,7 @@ import { getDisplayName } from "@/lib/utils";
 
 import BattingBreakdown from "@/components/player/BattingBreakdown";
 import TrendChart from "@/components/player/TrendChart";
+import PlayerAtBatLog from "@/components/player/PlayerAtBatLog";
 import {
     Users,
     User,
@@ -284,6 +285,13 @@ function PlayersPageContent() {
 
                     {/* グラフ: 打率推移 */}
                     <TrendChart data={trendData} playerAvg={playerBatting.avg} />
+
+                    {/* 全打席履歴 */}
+                    <PlayerAtBatLog 
+                        playerName={selectedPlayer}
+                        plateAppearances={filteredPA}
+                        games={data.games}
+                    />
 
                     {/* 投手成績（投手の場合） */}
                     {playerPitching && playerPitching.games > 0 && (

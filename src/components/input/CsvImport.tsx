@@ -38,7 +38,7 @@ const CSV_TYPES: { value: CsvType; label: string; description: string }[] = [
     {
         value: "games",
         label: "試合データ",
-        description: "id, date, opponent, result, scoreFor, scoreAgainst, gameType",
+        description: "id, date, opponent, result, scoreFor, scoreAgainst, gameType, officialGameName",
     },
     {
         value: "batting",
@@ -152,6 +152,7 @@ export default function CsvImport() {
                             scoreFor: Number(getVal(["scorefor", "得点", "自チーム得点", "自チーム"])) || 0,
                             scoreAgainst: Number(getVal(["scoreagainst", "失点", "相手チーム得点", "相手チーム"])) || 0,
                             gameType: (getVal(["type", "game", "種類", "種別", "gametype"]) as GameType) || "official",
+                            officialGameName: getVal(["officialgamename", "officialname", "公式戦名", "大会名", "game name"]),
                         };
                     });
                     executeImport({ games });
@@ -178,12 +179,23 @@ export default function CsvImport() {
                             }
                         }
 
+                        let resultStr = String(getVal(["result", "結果", "res"]) || "single").toLowerCase();
+                        // 古い形式や日本語を新しい形式に変換
+                        if (["凡退", "アウト", "ゴロ", "フライ", "groundout", "flyout"].includes(resultStr)) {
+                            resultStr = "out";
+                        } else if (["空振三振", "三振"].includes(resultStr) || resultStr === "strikeout") {
+                            resultStr = "strikeout_swinging";
+                        } else if (["見逃三振"].includes(resultStr)) {
+                            resultStr = "strikeout_looking";
+                        }
+
+
                         return {
                             id: getVal(["id", "アイディ"]) || `csv-pa-${Date.now()}-${i}`,
                             gameId: getVal(["gameid", "game", "試合"]) || "",
                             playerName: getVal(["playername", "player", "name", "選手", "名前", "nam"]) || "",
                             inning: Number(getVal(["inning", "回", "イニング"])) || 1,
-                            result: (getVal(["result", "結果", "res"]) as AtBatResult) || "single",
+                            result: (resultStr as AtBatResult) || "single",
                             battedBallType: (bType as BattedBallType) || undefined,
                             battedBallDirection: (bDir as BattedBallDirection) || undefined,
                             rbi: Number(getVal(["rbi", "打点"])) || 0,
@@ -288,7 +300,7 @@ export default function CsvImport() {
         switch (csvType) {
             case "games":
                 csvContent =
-                    "id,date,opponent,result,scoreFor,scoreAgainst,gameType\ngame-001,2026-03-01,サンプルチーム,win,5,3,official";
+                    "id,date,opponent,result,scoreFor,scoreAgainst,gameType,officialGameName\ngame-001,2026-03-01,サンプルチーム,win,5,3,official,秋季大会 1回戦";
                 break;
             case "batting":
                 csvContent =

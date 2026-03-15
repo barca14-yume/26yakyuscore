@@ -17,11 +17,15 @@ export type AtBatResult =
     | "homerun"   // 本塁打
     | "walk"      // 四球
     | "hbp"       // 死球
-    | "strikeout" // 三振
-    | "groundout" // ゴロアウト
-    | "flyout"    // フライアウト
     | "error"     // エラー出塁
-    | "sacrifice";// 犠打・犠飛
+    | "sacrifice" // 犠打・犠飛
+    | "out"       // アウト全般（ゴロ、フライ等）
+    | "strikeout_swinging" // 空振三振
+    | "strikeout_looking"  // 見逃三振
+    // === 旧データ互換用（画面入力では非表示） ===
+    | "strikeout" // 旧三振
+    | "groundout" // 旧ゴロアウト
+    | "flyout";   // 旧フライアウト
 
 /** 打球タイプ */
 export type BattedBallType = "grounder" | "liner" | "fly";
@@ -49,6 +53,7 @@ export interface GameMetadata {
     scoreFor: number;
     scoreAgainst: number;
     gameType: GameType;
+    officialGameName?: string;
     scoreboardImageUrl?: string;
 }
 
