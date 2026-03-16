@@ -144,4 +144,5 @@ export interface PitchingAggregation {
     balls: number;
     era: number;
     strikePercentage: number;
+    whip: number;
 }

@@ -322,6 +322,10 @@ export function aggregatePitching(
 
         // ストライク率
         const strikePercentage = totalPitches > 0 ? (totalStrikes / totalPitches) * 100 : 0;
+        
+        // WHIP = (与四球 + 被安打) / 投球回
+        // 投球回に直すときは 投球アウト数 / 3 とする。0アウトの場合は便宜上0とするか回避する
+        const whip = totalOuts > 0 ? (totalWalks + totalHits) / (totalOuts / 3) : 0;
 
         results.push({
             playerName: name,
@@ -337,6 +341,7 @@ export function aggregatePitching(
             balls: totalBalls,
             era,
             strikePercentage,
+            whip,
         });
     }
 

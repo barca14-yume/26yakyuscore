@@ -11,10 +11,12 @@ import {
   calcTeamERA,
   calcWinLossRecord,
   aggregateBatting,
+  aggregatePitching,
 } from "@/lib/calculations";
 import StatCard from "@/components/dashboard/StatCard";
 import RecentGames from "@/components/dashboard/RecentGames";
 import TeamOverview from "@/components/dashboard/TeamOverview";
+import PitchingOverview from "@/components/dashboard/PitchingOverview";
 import { Activity, Trophy, BarChart3, Shield } from "lucide-react";
 
 type GameFilter = "all" | "official" | "practice";
@@ -55,6 +57,7 @@ export default function DashboardPage() {
   const teamERA = calcTeamERA(filteredPitching);
   const winLoss = calcWinLossRecord(filteredGames);
   const battingStats = aggregateBatting(filteredPA, data.players);
+  const pitchingStats = aggregatePitching(filteredPitching, data.players);
 
   // 勝率
   const totalGames = winLoss.wins + winLoss.losses + winLoss.ties;
@@ -146,12 +149,15 @@ export default function DashboardPage() {
       </div>
 
       {/* コンテンツエリア */}
-      <div
-        className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 animate-fade-in-up"
-        style={{ animationDelay: "0.2s" }}
-      >
+      <div className="space-y-4 sm:space-y-6 animate-fade-in-up" style={{ animationDelay: "0.2s" }}>
+        {/* 上段: 最近の試合 */}
         <RecentGames games={filteredGames} />
-        <TeamOverview battingStats={battingStats} />
+        
+        {/* 下段: 打撃ランキングと投手ランキング */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+          <TeamOverview battingStats={battingStats} />
+          <PitchingOverview pitchingStats={pitchingStats} />
+        </div>
       </div>
     </div>
   );

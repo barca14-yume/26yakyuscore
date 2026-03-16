@@ -30,6 +30,7 @@ const SORT_OPTIONS: SortOption[] = [
     { key: "stolenBases", label: "盗塁", format: "number" },
     { key: "walks", label: "四球", format: "number" },
     { key: "sacrifices", label: "犠打", format: "number" },
+    { key: "strikeouts", label: "三振", format: "number" },
 ];
 
 interface TeamOverviewProps {
