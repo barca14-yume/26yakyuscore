@@ -128,7 +128,17 @@ function emptyPitching(): PitchingInput {
 }
 
 export default function GameInputForm() {
-    const { data, addGame, updateGame, replaceGameStats, addPlateAppearances, addPitchingStats, playerNames } = useData();
+    const { 
+        data, 
+        addGame, 
+        updateGame, 
+        replaceGameStats, 
+        addPlateAppearances, 
+        addPitchingStats, 
+        playerNames,
+        saveLineupPattern,
+        deleteLineupPattern 
+    } = useData();
     const [submitted, setSubmitted] = useState(false);
 
     // 入力モード: "new" (新規試合) | "existing" (既存試合に成績追加)
@@ -159,6 +169,77 @@ export default function GameInputForm() {
 
     // セクション表示切替
     const [showPitching, setShowPitching] = useState(false);
+
+    // スタメンパターンの選択用状態
+    const [selectedPatternId, setSelectedPatternId] = useState<string>("");
+
+    // 投球回数補正処理
+    const handleInningsChange = (index: number, newValue: number) => {
+        if (isNaN(newValue) || newValue < 0) {
+            updatePitching(index, "inningsPitched", 0);
+            return;
+        }
+        const intPart = Math.floor(newValue);
+        const decimalPart = Math.round((newValue - intPart) * 10);
+        
+        let adjustedValue = newValue;
+        if (decimalPart === 3) {
+            adjustedValue = intPart + 1; // e.g., 0.3 -> 1.0, 1.3 -> 2.0
+        } else if (decimalPart === 9) {
+            adjustedValue = Math.max(0, intPart + 0.2); // e.g., 0.9 -> 0.2, 1.9 -> 1.2
+        } else if (decimalPart > 3 && decimalPart < 9) {
+            // 直接入力で 0.4~0.8 になった場合は、キリよく補正するか許容するか。今回は0.2に戻す等でも良いが、基本的にはエラーにしないかそのまま。
+            // ユーザーの入力しやすさを考慮し、ここではそのままにするか 0.2 に丸めるなどが考えられるが、
+            // 上下ボタンによる操作を主眼としているためここでは3と9のみ特別扱い。
+        }
+
+        updatePitching(index, "inningsPitched", adjustedValue);
+    };
+
+    /** スタメンパターンとして保存 */
+    const handleSavePattern = () => {
+        const name = window.prompt("保存するスタメンパターンの名前を入力してください（例：パターン①、Aチーム等）");
+        if (!name || name.trim() === "") return;
+        
+        saveLineupPattern({
+            id: `pattern-${Date.now()}`,
+            name: name.trim(),
+            lineup: [...startingLineup]
+        });
+        alert(`スタメンパターン「${name}」を保存しました`);
+    };
+
+    /** 選択したスタメンパターンを読み込む */
+    const handleLoadPattern = (patternId: string) => {
+        setSelectedPatternId(patternId);
+        if (!patternId) return;
+
+        const pattern = data.lineupPatterns?.find(p => p.id === patternId);
+        if (pattern) {
+            // 現在のスタメン配列長に合わせる、あるいはパターンの長さに合わせる
+            // パターンの長さが現在のスタメン（最低9人）より短ければ空文字パディング
+            let newLineup = [...pattern.lineup];
+            if (newLineup.length < 9) {
+                const padding = Array(9 - newLineup.length).fill("");
+                newLineup = [...newLineup, ...padding];
+            }
+            setStartingLineup(newLineup);
+
+            // 最初の打席の選手名が空かつ打席データが1つの場合、読み込んだ1番打者をセットする
+            if (paInputs.length === 1 && !paInputs[0].playerName && newLineup[0]) {
+                updatePA(0, "playerName", newLineup[0]);
+            }
+        }
+    };
+
+    /** 選択したスタメンパターンを削除 */
+    const handleDeletePattern = () => {
+        if (!selectedPatternId) return;
+        if (window.confirm("選択中のパターンを削除しますか？")) {
+            deleteLineupPattern(selectedPatternId);
+            setSelectedPatternId("");
+        }
+    };
 
     // 既存試合が選択されたら、その試合の情報を反映（任意）またはIDだけ保持
     const handleGameSelect = (id: string) => {
@@ -667,9 +748,32 @@ export default function GameInputForm() {
                             )}
                         </div>
                     </CardTitle>
-                    <p className="text-xs text-muted-foreground">
-                        ここで打順を登録しておくと、打席入力時に自動で次の打者がセットされます。
-                    </p>
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-muted-foreground mt-2">
+                        <p>
+                            ここで打順を登録しておくと、打席入力時に自動で次の打者がセットされます。
+                        </p>
+                        <div className="flex items-center gap-2">
+                            <select
+                                value={selectedPatternId}
+                                onChange={(e) => handleLoadPattern(e.target.value)}
+                                className="h-7 rounded border border-input bg-background px-2 text-xs"
+                            >
+                                <option value="">パターンを選択...</option>
+                                {(data.lineupPatterns || []).map(p => (
+                                    <option key={p.id} value={p.id}>{p.name}</option>
+                                ))}
+                            </select>
+                            {selectedPatternId && (
+                                <button onClick={handleDeletePattern} className="text-red-500 hover:text-red-700 underline text-xs">
+                                    削除
+                                </button>
+                            )}
+                            <Button variant="secondary" size="sm" onClick={handleSavePattern} className="h-7 text-xs px-2">
+                                <Save className="h-3 w-3 mr-1" />
+                                現在の打順を保存
+                            </Button>
+                        </div>
+                    </div>
                 </CardHeader>
                 <CardContent>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -972,11 +1076,7 @@ export default function GameInputForm() {
                                             step={0.1}
                                             value={p.inningsPitched}
                                             onChange={(e) =>
-                                                updatePitching(
-                                                    index,
-                                                    "inningsPitched",
-                                                    Number(e.target.value)
-                                                )
+                                                handleInningsChange(index, Number(e.target.value))
                                             }
                                             className="h-8 text-xs"
                                         />

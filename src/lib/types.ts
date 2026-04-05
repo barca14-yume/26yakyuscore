@@ -87,12 +87,20 @@ export interface PitchingStats {
     balls: number;
 }
 
+/** スタメンパターンの型 */
+export interface LineupPattern {
+    id: string;
+    name: string;
+    lineup: string[];
+}
+
 /** アプリ全体のデータストア */
 export interface AppData {
     players: Player[];
     games: GameMetadata[];
     plateAppearances: PlateAppearance[];
     pitchingStats: PitchingStats[];
+    lineupPatterns?: LineupPattern[];
 }
 
 /** 打撃集計（選手単位） */

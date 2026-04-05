@@ -228,6 +228,7 @@ export const dummyData: AppData = {
     games,
     plateAppearances: generatePlateAppearances(),
     pitchingStats: generatePitchingStats(),
+    lineupPatterns: [],
 };
 
 /** 全選手名を取得する（後方互換用に残す） */

@@ -11,6 +11,7 @@ import {
     PlateAppearance,
     PitchingStats,
     Player,
+    LineupPattern,
 } from "./types";
 import { dummyData } from "./dummy-data";
 
@@ -41,6 +42,10 @@ interface DataContextType {
     clearAllData: () => void;
     /** 試合データに紐づかない孤立した打席・投手データを一括削除する */
     cleanOrphanData: () => void;
+    /** スタメンパターンを保存 */
+    saveLineupPattern: (pattern: LineupPattern) => void;
+    /** スタメンパターンを削除 */
+    deleteLineupPattern: (id: string) => void;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -64,6 +69,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
                     games: Array.isArray(parsed.games) ? parsed.games : dummyData.games,
                     plateAppearances: Array.isArray(parsed.plateAppearances) ? parsed.plateAppearances : dummyData.plateAppearances,
                     pitchingStats: Array.isArray(parsed.pitchingStats) ? parsed.pitchingStats : dummyData.pitchingStats,
+                    lineupPatterns: Array.isArray(parsed.lineupPatterns) ? parsed.lineupPatterns : [],
                 });
             } else {
                 console.log("No data in localStorage, using dummyData");
@@ -238,6 +244,31 @@ export function DataProvider({ children }: { children: ReactNode }) {
         });
     }, []);
 
+    /** スタメンパターンを保存 */
+    const saveLineupPattern = useCallback((pattern: LineupPattern) => {
+        setData((prev) => {
+            const patterns = prev.lineupPatterns || [];
+            const existingIndex = patterns.findIndex(p => p.id === pattern.id);
+            if (existingIndex !== -1) {
+                // 上書き
+                const newPatterns = [...patterns];
+                newPatterns[existingIndex] = pattern;
+                return { ...prev, lineupPatterns: newPatterns };
+            } else {
+                // 新規追加
+                return { ...prev, lineupPatterns: [...patterns, pattern] };
+            }
+        });
+    }, []);
+
+    /** スタメンパターンを削除 */
+    const deleteLineupPattern = useCallback((id: string) => {
+        setData((prev) => ({
+            ...prev,
+            lineupPatterns: (prev.lineupPatterns || []).filter((p) => p.id !== id),
+        }));
+    }, []);
+
     if (!isLoaded) {
         return (
             <div className="flex h-screen items-center justify-center bg-background">
@@ -268,6 +299,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
                 resetData,
                 clearAllData,
                 cleanOrphanData,
+                saveLineupPattern,
+                deleteLineupPattern,
             }}
         >
             {children}
