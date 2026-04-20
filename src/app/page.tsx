@@ -155,7 +155,7 @@ export default function DashboardPage() {
         
         {/* 下段: 打撃ランキングと投手ランキング */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-          <TeamOverview battingStats={battingStats} />
+          <TeamOverview battingStats={battingStats} totalGames={filteredGames.length} />
           <PitchingOverview pitchingStats={pitchingStats} />
         </div>
       </div>

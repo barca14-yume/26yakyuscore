@@ -36,14 +36,22 @@ const SORT_OPTIONS: SortOption[] = [
 interface TeamOverviewProps {
     battingStats: BattingAggregation[];
     limit?: number;
+    totalGames: number;
 }
 
-export default function TeamOverview({ battingStats, limit = 8 }: TeamOverviewProps) {
+export default function TeamOverview({ battingStats, limit = 8, totalGames }: TeamOverviewProps) {
     const { playerNames } = useData();
     const [sortBy, setSortBy] = React.useState<keyof BattingAggregation>("avg");
+    const isRateMetric = ["avg", "ops", "obp"].includes(sortBy);
+    const minPA = totalGames;
+
+    // 規定打席に基づいてフィルタリング
+    const qualifiedBatters = isRateMetric
+        ? battingStats.filter(b => b.plateAppearances >= minPA)
+        : battingStats;
 
     // 選択された指標でソートし、上位を取得
-    const topBatters = [...battingStats]
+    const topBatters = [...qualifiedBatters]
         .sort((a, b) => (b[sortBy] as number) - (a[sortBy] as number))
         .slice(0, limit);
 
@@ -66,6 +74,11 @@ export default function TeamOverview({ battingStats, limit = 8 }: TeamOverviewPr
                 <CardTitle className="flex items-center gap-2 text-base">
                     <BarChart3 className="h-4 w-4 text-muted-foreground" />
                     打撃ランキング
+                    {isRateMetric && (
+                        <span className="text-[10px] font-normal text-muted-foreground bg-muted px-1.5 py-0.5 rounded ml-1">
+                            {minPA}打席以上
+                        </span>
+                    )}
                 </CardTitle>
                 <div className="flex items-center gap-1.5 ml-2">
                     <ArrowUpDown className="h-3 w-3 text-muted-foreground" />
