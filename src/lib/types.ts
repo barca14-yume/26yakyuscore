@@ -100,7 +100,7 @@ export interface AppData {
     games: GameMetadata[];
     plateAppearances: PlateAppearance[];
     pitchingStats: PitchingStats[];
-    lineupPatterns?: LineupPattern[];
+    lineupPatterns: LineupPattern[];
 }
 
 /** 打撃集計（選手単位） */

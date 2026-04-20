@@ -62,7 +62,11 @@ export default function InputPage() {
 
             {/* タブコンテンツ */}
             <div className="animate-fade-in-up" style={{ animationDelay: "0.15s" }}>
-                {activeTab === "manual" && <GameInputForm />}
+                {activeTab === "manual" && (
+                    <React.Suspense fallback={<div className="h-48 flex items-center justify-center p-8 bg-muted/20 rounded-2xl animate-pulse">読み込み中...</div>}>
+                        <GameInputForm />
+                    </React.Suspense>
+                )}
                 {activeTab === "csv" && <CsvImport />}
                 {activeTab === "players" && <PlayerCsvManager />}
             </div>

@@ -4,7 +4,7 @@
  * 試合入力フォームコンポーネント
  * 試合メタデータ + 打席データ + 投手成績を入力
  */
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useData } from "@/lib/data-context";
+import { useSearchParams } from "next/navigation";
 import {
     GameMetadata,
     PlateAppearance,
@@ -139,6 +140,7 @@ export default function GameInputForm() {
         saveLineupPattern,
         deleteLineupPattern 
     } = useData();
+    const searchParams = useSearchParams();
     const [submitted, setSubmitted] = useState(false);
 
     // 入力モード: "new" (新規試合) | "existing" (既存試合に成績追加)
@@ -172,6 +174,16 @@ export default function GameInputForm() {
 
     // スタメンパターンの選択用状態
     const [selectedPatternId, setSelectedPatternId] = useState<string>("");
+
+    // URLパラメータによる初期編集データの読み込み
+    useEffect(() => {
+        const editId = searchParams.get("edit");
+        if (editId) {
+            setInputMode("existing");
+            handleGameSelect(editId);
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [searchParams]);
 
     // 投球回数補正処理
     const handleInningsChange = (index: number, newValue: number) => {
@@ -603,8 +615,7 @@ export default function GameInputForm() {
                                 type="date"
                                 value={date}
                                 onChange={(e) => setDate(e.target.value)}
-                                disabled={inputMode === "existing"}
-                                className="h-9 text-sm disabled:opacity-70 disabled:bg-muted"
+                                className="h-9 text-sm"
                             />
                         </div>
                         <div className="space-y-1.5">
@@ -613,8 +624,7 @@ export default function GameInputForm() {
                                 placeholder="チーム名"
                                 value={opponent}
                                 onChange={(e) => setOpponent(e.target.value)}
-                                disabled={inputMode === "existing"}
-                                className="h-9 text-sm disabled:opacity-70 disabled:bg-muted"
+                                className="h-9 text-sm"
                             />
                         </div>
                     </div>
@@ -625,8 +635,7 @@ export default function GameInputForm() {
                             <select
                                 value={result}
                                 onChange={(e) => setResult(e.target.value as GameResult)}
-                                disabled={inputMode === "existing"}
-                                className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm disabled:opacity-70 disabled:bg-muted"
+                                className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
                             >
                                 <option value="win">勝ち</option>
                                 <option value="loss">負け</option>
@@ -640,8 +649,7 @@ export default function GameInputForm() {
                                 min={0}
                                 value={scoreFor}
                                 onChange={(e) => setScoreFor(Number(e.target.value))}
-                                disabled={inputMode === "existing"}
-                                className="h-9 text-sm disabled:opacity-70 disabled:bg-muted"
+                                className="h-9 text-sm"
                             />
                         </div>
                         <div className="space-y-1.5">
@@ -651,8 +659,7 @@ export default function GameInputForm() {
                                 min={0}
                                 value={scoreAgainst}
                                 onChange={(e) => setScoreAgainst(Number(e.target.value))}
-                                disabled={inputMode === "existing"}
-                                className="h-9 text-sm disabled:opacity-70 disabled:bg-muted"
+                                className="h-9 text-sm"
                             />
                         </div>
                     </div>
@@ -664,12 +671,11 @@ export default function GameInputForm() {
                                 <button
                                     key={type}
                                     onClick={() => setGameType(type)}
-                                    disabled={inputMode === "existing"}
                                     className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${gameType === type
                                         ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400 ring-1 ring-emerald-300 dark:ring-emerald-700"
                                         : "bg-muted text-muted-foreground hover:bg-muted/80"
-                                        } ${inputMode === "existing" && gameType !== type ? "opacity-30" : ""}`}
-                                >
+                                        }`}
+                            >
                                     {type === "official" ? "公式戦" : "練習試合"}
                                 </button>
                             ))}
@@ -683,8 +689,7 @@ export default function GameInputForm() {
                                 placeholder="例：秋季大会 1回戦"
                                 value={officialGameName}
                                 onChange={(e) => setOfficialGameName(e.target.value)}
-                                disabled={inputMode === "existing"}
-                                className="h-9 text-sm disabled:opacity-70 disabled:bg-muted"
+                                className="h-9 text-sm"
                             />
                         </div>
                     )}

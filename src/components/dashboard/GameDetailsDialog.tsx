@@ -9,9 +9,10 @@ import {
 } from "@/components/ui/dialog";
 import { useData } from "@/lib/data-context";
 import { GameMetadata } from "@/lib/types";
-import { Trophy, Swords, Calendar, ImageIcon, X } from "lucide-react";
+import { Trophy, Swords, Calendar, ImageIcon, X, Trash2, Pencil } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { inningsToOuts, outsToInnings } from "@/lib/calculations";
+import Link from "next/link";
 
 interface GameDetailsDialogProps {
     game: GameMetadata | null;
@@ -20,7 +21,7 @@ interface GameDetailsDialogProps {
 }
 
 export function GameDetailsDialog({ game, open, onOpenChange }: GameDetailsDialogProps) {
-    const { data } = useData();
+    const { data, removeGame } = useData();
     const [isImageOpen, setIsImageOpen] = React.useState(false);
 
     // 選択された試合の打撃・投手データを抽出・集計
@@ -136,9 +137,32 @@ export function GameDetailsDialog({ game, open, onOpenChange }: GameDetailsDialo
                                     : gameTypeLabel}
                             </Badge>
                         </div>
-                        <div className="flex items-center gap-3 text-2xl">
-                            <Swords className="h-6 w-6 text-primary" />
-                            <span>vs {game.opponent}</span>
+                        <div className="flex items-center justify-between gap-3 text-2xl">
+                            <div className="flex items-center gap-3">
+                                <Swords className="h-6 w-6 text-primary" />
+                                <span>vs {game.opponent}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Link
+                                    href={`/input?edit=${game.id}`}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg border border-indigo-100 dark:border-indigo-900/30 transition-colors"
+                                >
+                                    <Pencil className="h-3.5 w-3.5" />
+                                    修正する
+                                </Link>
+                                <button
+                                    onClick={() => {
+                                        if (window.confirm("この試合データを削除しますか？\n紐づく打席データや投手成績もすべて削除されます。")) {
+                                            removeGame(game.id);
+                                            onOpenChange(false);
+                                        }
+                                    }}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg border border-red-100 dark:border-red-900/30 transition-colors"
+                                >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                    削除
+                                </button>
+                            </div>
                         </div>
                         <div className="flex items-center justify-between bg-muted/30 p-4 rounded-xl mt-2 border border-border/50">
                             <div className="text-center w-24">

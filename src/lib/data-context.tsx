@@ -46,14 +46,20 @@ interface DataContextType {
     saveLineupPattern: (pattern: LineupPattern) => void;
     /** スタメンパターンを削除 */
     deleteLineupPattern: (id: string) => void;
+    /** 試合を削除 */
+    removeGame: (gameId: string) => void;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
 /** データプロバイダ */
 export function DataProvider({ children }: { children: ReactNode }) {
-    const [data, setData] = useState<AppData>(dummyData);
-    const [isLoaded, setIsLoaded] = useState(false);
+    const [state, setState] = useState<{ data: AppData; isLoaded: boolean }>({
+        data: dummyData,
+        isLoaded: false,
+    });
+
+    const { data, isLoaded } = state;
 
     // 初回マウント時にlocalStorageからデータを読み込む
     useEffect(() => {
@@ -64,20 +70,23 @@ export function DataProvider({ children }: { children: ReactNode }) {
                 console.log("Loaded data from localStorage", parsed);
                 // localStorageのデータが不完全な場合（過去の仕様変更などで配列が欠損している場合）に備え、
                 // 不足しているプロパティはdummyDataで補完する
-                setData({
-                    players: Array.isArray(parsed.players) ? parsed.players : dummyData.players,
-                    games: Array.isArray(parsed.games) ? parsed.games : dummyData.games,
-                    plateAppearances: Array.isArray(parsed.plateAppearances) ? parsed.plateAppearances : dummyData.plateAppearances,
-                    pitchingStats: Array.isArray(parsed.pitchingStats) ? parsed.pitchingStats : dummyData.pitchingStats,
-                    lineupPatterns: Array.isArray(parsed.lineupPatterns) ? parsed.lineupPatterns : [],
+                setState({
+                    data: {
+                        players: Array.isArray(parsed.players) ? parsed.players : dummyData.players,
+                        games: Array.isArray(parsed.games) ? parsed.games : dummyData.games,
+                        plateAppearances: Array.isArray(parsed.plateAppearances) ? parsed.plateAppearances : dummyData.plateAppearances,
+                        pitchingStats: Array.isArray(parsed.pitchingStats) ? parsed.pitchingStats : dummyData.pitchingStats,
+                        lineupPatterns: Array.isArray(parsed.lineupPatterns) ? parsed.lineupPatterns : [],
+                    },
+                    isLoaded: true,
                 });
             } else {
                 console.log("No data in localStorage, using dummyData");
+                setState((prev) => ({ ...prev, isLoaded: true }));
             }
         } catch (e) {
             console.error("Failed to parse local storage data", e);
-        } finally {
-            setIsLoaded(true);
+            setState((prev) => ({ ...prev, isLoaded: true }));
         }
     }, []);
 
@@ -97,175 +106,239 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
     /** 試合を追加 */
     const addGame = useCallback((game: GameMetadata) => {
-        setData((prev) => ({
+        setState((prev) => ({
             ...prev,
-            games: [...prev.games, game],
+            data: {
+                ...prev.data,
+                games: [...prev.data.games, game],
+            },
         }));
     }, []);
 
     /** 試合情報を更新 */
     const updateGame = useCallback((gameId: string, updates: Partial<GameMetadata>) => {
-        setData((prev) => ({
+        setState((prev) => ({
             ...prev,
-            games: prev.games.map((g) =>
-                g.id === gameId ? { ...g, ...updates } : g
-            ),
+            data: {
+                ...prev.data,
+                games: prev.data.games.map((g) =>
+                    g.id === gameId ? { ...g, ...updates } : g
+                ),
+            },
         }));
     }, []);
 
     /** 打席データを追加 */
     const addPlateAppearances = useCallback((pas: PlateAppearance[]) => {
-        setData((prev) => ({
+        setState((prev) => ({
             ...prev,
-            plateAppearances: [...prev.plateAppearances, ...pas],
+            data: {
+                ...prev.data,
+                plateAppearances: [...prev.data.plateAppearances, ...pas],
+            },
         }));
     }, []);
 
     /** 投手成績を追加 */
     const addPitchingStats = useCallback((stats: PitchingStats[]) => {
-        setData((prev) => ({
+        setState((prev) => ({
             ...prev,
-            pitchingStats: [...prev.pitchingStats, ...stats],
+            data: {
+                ...prev.data,
+                pitchingStats: [...prev.data.pitchingStats, ...stats],
+            },
         }));
     }, []);
 
     /** CSVインポート等で一括データ追加 */
     const importData = useCallback((newData: Partial<AppData>) => {
-        setData((prev) => ({
-            players: [...prev.players, ...(newData.players || [])],
-            games: [...prev.games, ...(newData.games || [])],
-            plateAppearances: [
-                ...prev.plateAppearances,
-                ...(newData.plateAppearances || []),
-            ],
-            pitchingStats: [
-                ...prev.pitchingStats,
-                ...(newData.pitchingStats || []),
-            ],
+        setState((prev) => ({
+            ...prev,
+            data: {
+                ...prev.data,
+                players: [...prev.data.players, ...(newData.players || [])],
+                games: [...prev.data.games, ...(newData.games || [])],
+                plateAppearances: [
+                    ...prev.data.plateAppearances,
+                    ...(newData.plateAppearances || []),
+                ],
+                pitchingStats: [
+                    ...prev.data.pitchingStats,
+                    ...(newData.pitchingStats || []),
+                ],
+            },
         }));
     }, []);
 
     /** CSVインポート等で既存データを上書き */
     const overwriteImportData = useCallback((newData: Partial<AppData>) => {
-        setData((prev) => ({
-            players: newData.players !== undefined ? newData.players : prev.players,
-            games: newData.games !== undefined ? newData.games : prev.games,
-            plateAppearances:
-                newData.plateAppearances !== undefined
-                    ? newData.plateAppearances
-                    : prev.plateAppearances,
-            pitchingStats:
-                newData.pitchingStats !== undefined
-                    ? newData.pitchingStats
-                    : prev.pitchingStats,
+        setState((prev) => ({
+            ...prev,
+            data: {
+                ...prev.data,
+                players: newData.players !== undefined ? newData.players : prev.data.players,
+                games: newData.games !== undefined ? newData.games : prev.data.games,
+                plateAppearances:
+                    newData.plateAppearances !== undefined
+                        ? newData.plateAppearances
+                        : prev.data.plateAppearances,
+                pitchingStats:
+                    newData.pitchingStats !== undefined
+                        ? newData.pitchingStats
+                        : prev.data.pitchingStats,
+            },
         }));
     }, []);
 
     /** 指定した試合のすべての打席・投手成績を上書き（既存成績の編集用） */
     const replaceGameStats = useCallback((gameId: string, pas: PlateAppearance[], pitching: PitchingStats[]) => {
-        setData((prev) => ({
+        setState((prev) => ({
             ...prev,
-            plateAppearances: [
-                ...prev.plateAppearances.filter((pa) => pa.gameId !== gameId),
-                ...pas,
-            ],
-            pitchingStats: [
-                ...prev.pitchingStats.filter((p) => p.gameId !== gameId),
-                ...pitching,
-            ],
+            data: {
+                ...prev.data,
+                plateAppearances: [
+                    ...prev.data.plateAppearances.filter((pa) => pa.gameId !== gameId),
+                    ...pas,
+                ],
+                pitchingStats: [
+                    ...prev.data.pitchingStats.filter((p) => p.gameId !== gameId),
+                    ...pitching,
+                ],
+            },
         }));
     }, []);
 
     /** 選手を追加（重複名チェック付き） */
     const addPlayers = useCallback((newPlayers: Player[]) => {
-        setData((prev) => {
-            const existingNames = new Set(prev.players.map((p) => p.name));
+        setState((prev) => {
+            const existingNames = new Set(prev.data.players.map((p) => p.name));
             const unique = newPlayers.filter((p) => !existingNames.has(p.name));
             return {
                 ...prev,
-                players: [...prev.players, ...unique],
+                data: {
+                    ...prev.data,
+                    players: [...prev.data.players, ...unique],
+                },
             };
         });
     }, []);
 
     /** 選手を更新 */
     const updatePlayer = useCallback((player: Player) => {
-        setData((prev) => ({
+        setState((prev) => ({
             ...prev,
-            players: prev.players.map((p) =>
-                p.id === player.id ? player : p
-            ),
+            data: {
+                ...prev.data,
+                players: prev.data.players.map((p) =>
+                    p.id === player.id ? player : p
+                ),
+            },
         }));
     }, []);
 
     /** 選手を削除 */
     const removePlayer = useCallback((playerId: string) => {
-        setData((prev) => ({
+        setState((prev) => ({
             ...prev,
-            players: prev.players.filter((p) => p.id !== playerId),
+            data: {
+                ...prev.data,
+                players: prev.data.players.filter((p) => p.id !== playerId),
+            },
         }));
     }, []);
 
     /** 選手一覧を丸ごと置換（CSVインポート） */
     const setPlayers = useCallback((players: Player[]) => {
-        setData((prev) => ({
+        setState((prev) => ({
             ...prev,
-            players,
+            data: {
+                ...prev.data,
+                players,
+            },
         }));
     }, []);
 
     /** データリセット（ダミーデータへ戻す） */
     const resetData = useCallback(() => {
-        setData(dummyData);
+        setState({ data: dummyData, isLoaded: true });
     }, []);
 
     /** データをすべて空にする（新規スタート用） */
     const clearAllData = useCallback(() => {
-        setData({
-            players: [],
-            games: [],
-            plateAppearances: [],
-            pitchingStats: [],
+        setState({
+            data: {
+                players: [],
+                games: [],
+                plateAppearances: [],
+                pitchingStats: [],
+                lineupPatterns: [],
+            },
+            isLoaded: true,
         });
     }, []);
 
     /** 試合データに紐づかない孤立したデータを一括削除する */
     const cleanOrphanData = useCallback(() => {
-        setData((prev) => {
-            const validGameIds = new Set(prev.games.map((g) => g.id));
-            const validPas = prev.plateAppearances.filter((pa) => validGameIds.has(pa.gameId));
-            const validPitching = prev.pitchingStats.filter((ps) => validGameIds.has(ps.gameId));
+        setState((prev) => {
+            const validGameIds = new Set(prev.data.games.map((g) => g.id));
+            const validPas = prev.data.plateAppearances.filter((pa) => validGameIds.has(pa.gameId));
+            const validPitching = prev.data.pitchingStats.filter((ps) => validGameIds.has(ps.gameId));
             
             return {
                 ...prev,
-                plateAppearances: validPas,
-                pitchingStats: validPitching,
+                data: {
+                    ...prev.data,
+                    plateAppearances: validPas,
+                    pitchingStats: validPitching,
+                },
             };
         });
     }, []);
 
     /** スタメンパターンを保存 */
     const saveLineupPattern = useCallback((pattern: LineupPattern) => {
-        setData((prev) => {
-            const patterns = prev.lineupPatterns || [];
+        setState((prev) => {
+            const patterns = prev.data.lineupPatterns || [];
             const existingIndex = patterns.findIndex(p => p.id === pattern.id);
             if (existingIndex !== -1) {
                 // 上書き
                 const newPatterns = [...patterns];
                 newPatterns[existingIndex] = pattern;
-                return { ...prev, lineupPatterns: newPatterns };
+                return { 
+                    ...prev, 
+                    data: { ...prev.data, lineupPatterns: newPatterns } 
+                };
             } else {
                 // 新規追加
-                return { ...prev, lineupPatterns: [...patterns, pattern] };
+                return { 
+                    ...prev, 
+                    data: { ...prev.data, lineupPatterns: [...patterns, pattern] } 
+                };
             }
         });
     }, []);
 
     /** スタメンパターンを削除 */
     const deleteLineupPattern = useCallback((id: string) => {
-        setData((prev) => ({
+        setState((prev) => ({
             ...prev,
-            lineupPatterns: (prev.lineupPatterns || []).filter((p) => p.id !== id),
+            data: {
+                ...prev.data,
+                lineupPatterns: (prev.data.lineupPatterns || []).filter((p) => p.id !== id),
+            },
+        }));
+    }, []);
+
+    /** 試合を削除 */
+    const removeGame = useCallback((gameId: string) => {
+        setState((prev) => ({
+            ...prev,
+            data: {
+                ...prev.data,
+                games: prev.data.games.filter((g) => g.id !== gameId),
+                plateAppearances: prev.data.plateAppearances.filter((pa) => pa.gameId !== gameId),
+                pitchingStats: prev.data.pitchingStats.filter((ps) => ps.gameId !== gameId),
+            },
         }));
     }, []);
 
@@ -301,6 +374,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
                 cleanOrphanData,
                 saveLineupPattern,
                 deleteLineupPattern,
+                removeGame,
             }}
         >
             {children}
