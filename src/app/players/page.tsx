@@ -252,6 +252,11 @@ function PlayersPageContent() {
                                     { label: "四球", value: `${playerBatting.walks}` },
                                     { label: "死球", value: `${playerBatting.hbp}` },
                                     { label: "三振", value: `${playerBatting.strikeouts}` },
+                                    {
+                                        label: "三振率",
+                                        value: `${(playerBatting.strikeoutRate * 100).toFixed(1)}%`,
+                                        highlight: true,
+                                    },
                                     { label: "犠打", value: `${playerBatting.sacrifices}` },
                                     { label: "安打", value: `${playerBatting.hits}` },
                                     { label: "打数", value: `${playerBatting.atBats}` },

@@ -123,6 +123,8 @@ export interface BattingAggregation {
     obp: number;
     slg: number;
     ops: number;
+    /** 三振率 = 三振 / 打席数 (K%) */
+    strikeoutRate: number;
     /** 打球方向分布 */
     directionBreakdown: {
         pull: number;

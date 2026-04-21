@@ -16,7 +16,9 @@ import { getDisplayName } from "@/lib/utils";
 type SortOption = {
     key: keyof BattingAggregation;
     label: string;
-    format: "avg" | "number" | "ops";
+    format: "avg" | "number" | "ops" | "percent";
+    /** trueの場合は昇順（低い方が良い指標） */
+    ascending?: boolean;
 };
 
 const SORT_OPTIONS: SortOption[] = [
@@ -31,6 +33,7 @@ const SORT_OPTIONS: SortOption[] = [
     { key: "walks", label: "四球", format: "number" },
     { key: "sacrifices", label: "犠打", format: "number" },
     { key: "strikeouts", label: "三振", format: "number" },
+    { key: "strikeoutRate", label: "三振率", format: "percent", ascending: true },
 ];
 
 interface TeamOverviewProps {
@@ -42,7 +45,7 @@ interface TeamOverviewProps {
 export default function TeamOverview({ battingStats, limit = 8, totalGames }: TeamOverviewProps) {
     const { playerNames } = useData();
     const [sortBy, setSortBy] = React.useState<keyof BattingAggregation>("avg");
-    const isRateMetric = ["avg", "ops", "obp"].includes(sortBy);
+    const isRateMetric = ["avg", "ops", "obp", "strikeoutRate"].includes(sortBy);
     const minPA = totalGames;
 
     // 規定打席に基づいてフィルタリング
@@ -51,20 +54,29 @@ export default function TeamOverview({ battingStats, limit = 8, totalGames }: Te
         : battingStats;
 
     // 選択された指標でソートし、上位を取得
+    const currentOption = SORT_OPTIONS.find((opt) => opt.key === sortBy) || SORT_OPTIONS[0];
+    const isAscending = currentOption.ascending === true;
     const topBatters = [...qualifiedBatters]
-        .sort((a, b) => (b[sortBy] as number) - (a[sortBy] as number))
+        .sort((a, b) =>
+            isAscending
+                ? (a[sortBy] as number) - (b[sortBy] as number)
+                : (b[sortBy] as number) - (a[sortBy] as number)
+        )
         .slice(0, limit);
 
-    // 選択中のオプション情報を取得
-    const currentOption = SORT_OPTIONS.find((opt) => opt.key === sortBy) || SORT_OPTIONS[0];
-
-    // プログレスバーの最大値計算
-    const maxValue = topBatters.length > 0 ? Math.max(...topBatters.map((b) => b[sortBy] as number)) : 1;
+    // 選択中のオプション情報を取得・プログレスバーの最大値計算
+    // 昇順の場合は最小値を基準にバーの100%を計算
+    const maxValue = topBatters.length > 0
+        ? (isAscending
+            ? Math.max(...topBatters.map((b) => b[sortBy] as number)) || 1
+            : Math.max(...topBatters.map((b) => b[sortBy] as number)))
+        : 1;
 
     // 値のフォーマット関数
-    const formatValue = (value: number, format: "avg" | "number" | "ops") => {
+    const formatValue = (value: number, format: "avg" | "number" | "ops" | "percent") => {
         if (format === "avg") return `.${(value * 1000).toFixed(0).padStart(3, "0")}`;
         if (format === "ops") return value.toFixed(3);
+        if (format === "percent") return `${(value * 100).toFixed(1)}%`;
         return value.toString();
     };
 

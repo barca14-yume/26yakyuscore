@@ -178,6 +178,9 @@ export function aggregateBatting(
         // OPS = 出塁率 + 長打率
         const ops = obp + slg;
 
+        // 三振率 = 三振 / 打席数 (K%)
+        const strikeoutRate = appearances.length > 0 ? strikeouts.length / appearances.length : 0;
+
         // 打球方向分布 (1-9の守備位置から プル/センター/オポジット に変換)
         const directionBreakdown = { pull: 0, center: 0, opposite: 0 };
         const player = playerMap.get(name);
@@ -217,6 +220,7 @@ export function aggregateBatting(
             obp,
             slg,
             ops,
+            strikeoutRate,
             directionBreakdown,
             battedBallBreakdown,
         });
