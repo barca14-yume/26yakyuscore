@@ -57,11 +57,24 @@ const DataContext = createContext<DataContextType | undefined>(undefined);
 /** データプロバイダ */
 export function DataProvider({ children }: { children: ReactNode }) {
     const [state, setState] = useState<{ data: AppData; isLoaded: boolean }>({
-        data: dummyData,
+        data: {
+            players: [],
+            games: [],
+            plateAppearances: [],
+            pitchingStats: [],
+            lineupPatterns: [],
+        },
         isLoaded: false,
     });
 
     const { data, isLoaded } = state;
+
+    /**
+     * 初回ロード直後の保存をスキップするためのフラグ。
+     * trueのとき、保存Effectは何もせずfalseに変える。
+     * これにより「空データ/dummyDataでlocalStorageを上書き」を防ぐ。
+     */
+    const skipNextSave = useRef(true);
 
     // 初回マウント時にlocalStorageからデータを読み込む
     useEffect(() => {
@@ -69,33 +82,58 @@ export function DataProvider({ children }: { children: ReactNode }) {
             const savedData = localStorage.getItem("yakyuscore-data");
             if (savedData) {
                 const parsed = JSON.parse(savedData);
-                console.log("Loaded data from localStorage", parsed);
-                // localStorageのデータが不完全な場合（過去の仕様変更などで配列が欠損している場合）に備え、
-                // 不足しているプロパティはdummyDataで補完する
+                console.log("localStorageからデータを読み込みました", parsed);
+                // 各配列が欠損している場合は空配列で補完する
                 setState({
                     data: {
-                        players: Array.isArray(parsed.players) ? parsed.players : dummyData.players,
-                        games: Array.isArray(parsed.games) ? parsed.games : dummyData.games,
-                        plateAppearances: Array.isArray(parsed.plateAppearances) ? parsed.plateAppearances : dummyData.plateAppearances,
-                        pitchingStats: Array.isArray(parsed.pitchingStats) ? parsed.pitchingStats : dummyData.pitchingStats,
+                        players: Array.isArray(parsed.players) ? parsed.players : [],
+                        games: Array.isArray(parsed.games) ? parsed.games : [],
+                        plateAppearances: Array.isArray(parsed.plateAppearances) ? parsed.plateAppearances : [],
+                        pitchingStats: Array.isArray(parsed.pitchingStats) ? parsed.pitchingStats : [],
                         lineupPatterns: Array.isArray(parsed.lineupPatterns) ? parsed.lineupPatterns : [],
                     },
                     isLoaded: true,
                 });
             } else {
-                console.log("No data in localStorage, using dummyData");
-                setState((prev) => ({ ...prev, isLoaded: true }));
+                // localStorageにデータなし（初回起動・ポート変更・キャッシュクリア等）
+                // dummyDataを保存しないよう空配列で初期化する
+                console.warn("localStorageにデータが見つかりません。CSVからインポートしてください。");
+                setState({
+                    data: {
+                        players: [],
+                        games: [],
+                        plateAppearances: [],
+                        pitchingStats: [],
+                        lineupPatterns: [],
+                    },
+                    isLoaded: true,
+                });
             }
         } catch (e) {
-            console.error("Failed to parse local storage data", e);
-            setState((prev) => ({ ...prev, isLoaded: true }));
+            // JSON解析失敗時：壊れたデータを空データで上書きしないようskipNextSaveは変更しない
+            console.error("localStorageのデータ解析に失敗しました。データをリセットします。", e);
+            setState({
+                data: {
+                    players: [],
+                    games: [],
+                    plateAppearances: [],
+                    pitchingStats: [],
+                    lineupPatterns: [],
+                },
+                isLoaded: true,
+            });
         }
     }, []);
 
-    // データが変更されたらlocalStorageに保存する（初回ロード後のみ）
+    // データが変更されたらlocalStorageに保存する（初回ロード直後はスキップ）
     useEffect(() => {
         if (isLoaded) {
-            console.log("Saving data to localStorage", data);
+            if (skipNextSave.current) {
+                // 初回ロード直後の保存をスキップ（空データ/dummyDataの上書き防止）
+                skipNextSave.current = false;
+                return;
+            }
+            console.log("localStorageにデータを保存します", data);
             localStorage.setItem("yakyuscore-data", JSON.stringify(data));
         }
     }, [data, isLoaded]);
