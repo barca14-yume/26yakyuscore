@@ -42,6 +42,8 @@ interface DataContextType {
     clearAllData: () => void;
     /** 試合データに紐づかない孤立した打席・投手データを一括削除する */
     cleanOrphanData: () => void;
+    /** 選手マスタに存在しない選手名の打席・投手データを削除する */
+    purgeOrphanPlateAppearances: () => { removedPA: number; removedPitching: number };
     /** スタメンパターンを保存 */
     saveLineupPattern: (pattern: LineupPattern) => void;
     /** スタメンパターンを削除 */
@@ -170,7 +172,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         }));
     }, []);
 
-    /** CSVインポート等で既存データを上書き */
+    /** CSVインポート等で既存データを上書き（lineupPatternsは保持する） */
     const overwriteImportData = useCallback((newData: Partial<AppData>) => {
         setState((prev) => ({
             ...prev,
@@ -186,6 +188,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
                     newData.pitchingStats !== undefined
                         ? newData.pitchingStats
                         : prev.data.pitchingStats,
+                // lineupPatternsは上書きしない（打順パターンを保持するため）
+                lineupPatterns: prev.data.lineupPatterns,
             },
         }));
     }, []);
@@ -295,6 +299,67 @@ export function DataProvider({ children }: { children: ReactNode }) {
         });
     }, []);
 
+    /**
+     * 選手マスタに存在しない選手名の打席・投手データを削除する
+     * 名前の揺れ（スペース有無・旧字体等）も考慮して判定する
+     * @returns 削除した打席数と投手数
+     */
+    const purgeOrphanPlateAppearances = useCallback((): { removedPA: number; removedPitching: number } => {
+        let removedPA = 0;
+        let removedPitching = 0;
+
+        setState((prev) => {
+            const playerNames = new Set(prev.data.players.map((p) => p.name));
+
+            // 名前正規化（表記揺れ吸収）
+            const normalize = (name: string) =>
+                name
+                    .replace(/[\s\u3000]/g, "")
+                    .replace(/澤/g, "沢").replace(/髙/g, "高")
+                    .replace(/﨑|崎/g, "崎").replace(/齊|齋/g, "斉")
+                    .replace(/邊|邉/g, "辺").replace(/廣/g, "広")
+                    .replace(/嶋/g, "島").replace(/櫻/g, "桜")
+                    .replace(/濱/g, "浜").replace(/瀧/g, "滝")
+                    .replace(/國/g, "国").replace(/彌/g, "弥")
+                    .replace(/眞|真/g, "真");
+
+            // 正規化済みの選手名セット
+            const normalizedPlayerNames = new Set(
+                prev.data.players.map((p) => normalize(p.name))
+            );
+
+            // 名前が選手マスタに存在するかチェック（完全一致・正規化一致・前方一致）
+            const isKnownPlayer = (name: string): boolean => {
+                if (!name) return false;
+                if (playerNames.has(name)) return true;
+                const normalized = normalize(name);
+                if (normalizedPlayerNames.has(normalized)) return true;
+                // 前方一致（姓のみ入力などに対応）
+                for (const pName of normalizedPlayerNames) {
+                    if (pName.startsWith(normalized) || normalized.startsWith(pName)) return true;
+                }
+                return false;
+            };
+
+            const validPas = prev.data.plateAppearances.filter((pa) => isKnownPlayer(pa.playerName));
+            const validPitching = prev.data.pitchingStats.filter((ps) => isKnownPlayer(ps.playerName));
+
+            removedPA = prev.data.plateAppearances.length - validPas.length;
+            removedPitching = prev.data.pitchingStats.length - validPitching.length;
+
+            return {
+                ...prev,
+                data: {
+                    ...prev.data,
+                    plateAppearances: validPas,
+                    pitchingStats: validPitching,
+                },
+            };
+        });
+
+        return { removedPA, removedPitching };
+    }, []);
+
     /** スタメンパターンを保存 */
     const saveLineupPattern = useCallback((pattern: LineupPattern) => {
         setState((prev) => {
@@ -372,6 +437,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
                 resetData,
                 clearAllData,
                 cleanOrphanData,
+                purgeOrphanPlateAppearances,
                 saveLineupPattern,
                 deleteLineupPattern,
                 removeGame,

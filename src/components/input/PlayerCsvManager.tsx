@@ -37,12 +37,14 @@ interface PlayerCsvRow {
 }
 
 export default function PlayerCsvManager() {
-    const { data, addPlayers, setPlayers, removePlayer, updatePlayer } = useData();
+    const { data, addPlayers, setPlayers, removePlayer, updatePlayer, purgeOrphanPlateAppearances } = useData();
     const [preview, setPreview] = useState<PlayerCsvRow[] | null>(null);
     const [fileName, setFileName] = useState("");
     const [error, setError] = useState("");
     const [imported, setImported] = useState(false);
     const [importMode, setImportMode] = useState<"add" | "replace">("add");
+    // データ実行後の結果表示用
+    const [purgeResult, setPurgeResult] = useState<{ removedPA: number; removedPitching: number } | null>(null);
 
     // 手動追加フォーム
     const [showAddForm, setShowAddForm] = useState(false);
@@ -805,6 +807,87 @@ export default function PlayerCsvManager() {
                     </CardContent>
                 </Card>
             )}
+
+            {/* データ整合性修正 */}
+            <Card className="border-amber-200 dark:border-amber-800 shadow-sm">
+                <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2 text-amber-700 dark:text-amber-400">
+                        <AlertCircle className="h-4 w-4" />
+                        データ整合性修正
+                    </CardTitle>
+                    <p className="text-[11px] text-muted-foreground">
+                        選手マスタに登録されていない選手名で登録された打席・投手データを完全に削除します。選手データを上書きインポートした後に実行してください。
+                    </p>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                    {/* 現在の孏立データの確認 */}
+                    {(() => {
+                        const playerNames = new Set(data.players.map(p => p.name));
+                        const normalize = (name: string) => name.replace(/[\s\u3000]/g, "");
+                        const normalizedNames = new Set(data.players.map(p => normalize(p.name)));
+                        const isKnown = (name: string) => {
+                            if (playerNames.has(name)) return true;
+                            const n = normalize(name);
+                            if (normalizedNames.has(n)) return true;
+                            for (const pn of normalizedNames) {
+                                if (pn.startsWith(n) || n.startsWith(pn)) return true;
+                            }
+                            return false;
+                        };
+                        const orphanPAs = data.plateAppearances.filter(pa => !isKnown(pa.playerName));
+                        const orphanPitching = data.pitchingStats.filter(ps => !isKnown(ps.playerName));
+                        const orphanNames = [...new Set([
+                            ...orphanPAs.map(pa => pa.playerName),
+                            ...orphanPitching.map(ps => ps.playerName),
+                        ])];
+
+                        return (
+                            <>
+                                {orphanNames.length > 0 ? (
+                                    <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800">
+                                        <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 mb-2">
+                                            マスタにない選手名（{orphanNames.length}名）
+                                        </p>
+                                        <div className="flex flex-wrap gap-1 mb-3">
+                                            {orphanNames.map(name => (
+                                                <Badge key={name} variant="outline" className="text-[10px] border-amber-300 text-amber-700 dark:text-amber-400">
+                                                    {name} ({orphanPAs.filter(p => p.playerName === name).length}打席)
+                                                </Badge>
+                                            ))}
+                                        </div>
+                                        <Button
+                                            onClick={() => {
+                                                if (window.confirm(
+                                                    `選手マスタに存在しない${orphanNames.length}名分のデータ（打席${orphanPAs.length}件・投手${orphanPitching.length}件）を削除します。この操作は元に戻せません。`
+                                                )) {
+                                                    const result = purgeOrphanPlateAppearances();
+                                                    setPurgeResult(result);
+                                                }
+                                            }}
+                                            className="w-full h-9 bg-amber-600 hover:bg-amber-700 text-white text-sm"
+                                        >
+                                            <Trash2 className="h-4 w-4 mr-2" />
+                                            マスタにない選手の打席・投手データを削除
+                                        </Button>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center gap-2 py-2 text-sm text-emerald-600 dark:text-emerald-400">
+                                        <CheckCircle2 className="h-4 w-4" />
+                                        データ整合性に問題はありません
+                                    </div>
+                                )}
+
+                                {purgeResult && (
+                                    <div className="flex items-center gap-2 py-2 text-sm text-emerald-600 dark:text-emerald-400">
+                                        <CheckCircle2 className="h-4 w-4" />
+                                        打席{purgeResult.removedPA}件・投手{purgeResult.removedPitching}件を削除しました
+                                    </div>
+                                )}
+                            </>
+                        );
+                    })()}
+                </CardContent>
+            </Card>
         </div>
     );
 }

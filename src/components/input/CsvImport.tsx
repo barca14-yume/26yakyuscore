@@ -222,7 +222,8 @@ export default function CsvImport() {
                             walksAllowed: Number(getVal(["walksallowed", "walk", "bb", "四球", "四死球"])) || 0,
                             strikeouts: Number(getVal(["strikeout", "so", "k", "三振", "奪三振"])) || 0,
                             totalPitches: Number(getVal(["totalpitches", "pitch", "球数"])) || 0,
-                            strikes: Number(getVal(["strikes", "strike", "ストライク"]) && !getVal(["strikeout", "so", "k", "三振", "奪三振"]) ? getVal(["strikes", "strike", "ストライク"]) : 0) || 0,
+                            // ストライク数（投球中のストライク数。奪三振数とは別フィールド）
+                            strikes: Number(getVal(["strikes", "strike", "ストライク"])) || 0,
                             balls: Number(getVal(["balls", "ball", "ボール"])) || 0,
                         };
                     });
@@ -252,10 +253,26 @@ export default function CsvImport() {
                 csvContent = Papa.unparse(data.games);
                 fileName = "games_export.csv";
                 break;
-            case "batting":
-                csvContent = Papa.unparse(data.plateAppearances);
+            case "batting": {
+                // battedBallType / battedBallDirection は optional のため、
+                // 先頭行に存在しない場合 Papaparse がカラム自体を省略してしまう。
+                // 全カラムを明示的にマッピングして確実に出力する。
+                const battingRows = data.plateAppearances.map((pa) => ({
+                    id: pa.id,
+                    gameId: pa.gameId,
+                    playerName: pa.playerName,
+                    inning: pa.inning,
+                    result: pa.result,
+                    battedBallType: pa.battedBallType ?? "",
+                    battedBallDirection: pa.battedBallDirection ?? "",
+                    rbi: pa.rbi,
+                    runs: pa.runs,
+                    stolenBases: pa.stolenBases,
+                }));
+                csvContent = Papa.unparse(battingRows);
                 fileName = "batting_export.csv";
                 break;
+            }
             case "pitching":
                 // カラム名をインポート形式に合わせる
                 const pStats = data.pitchingStats.map(s => ({
