@@ -23,7 +23,9 @@ type SortOption = {
 
 const SORT_OPTIONS: SortOption[] = [
     { key: "avg", label: "打率", format: "avg" },
+    { key: "rispAvg", label: "得点圏打率", format: "avg" },
     { key: "ops", label: "OPS", format: "ops" },
+    { key: "slg", label: "長打率", format: "ops" },
     { key: "homeruns", label: "本塁打", format: "number" },
     { key: "rbi", label: "打点", format: "number" },
     { key: "runs", label: "得点", format: "number" },
@@ -45,7 +47,7 @@ interface TeamOverviewProps {
 export default function TeamOverview({ battingStats, limit = 8, totalGames }: TeamOverviewProps) {
     const { playerNames } = useData();
     const [sortBy, setSortBy] = React.useState<keyof BattingAggregation>("avg");
-    const isRateMetric = ["avg", "ops", "obp", "strikeoutRate"].includes(sortBy);
+    const isRateMetric = ["avg", "rispAvg", "ops", "slg", "obp", "strikeoutRate"].includes(sortBy);
     const minPA = totalGames;
 
     // 規定打席に基づいてフィルタリング
