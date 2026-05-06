@@ -178,6 +178,12 @@ export function aggregateBatting(
         // OPS = 出塁率 + 長打率
         const ops = obp + slg;
 
+        // 得点圏打率 = 得点圏での安打 / 得点圏での打数
+        const rispAppearances = appearances.filter((pa) => pa.isRisp);
+        const rispAtBats = rispAppearances.filter((pa) => isAtBat(pa.result));
+        const rispHits = rispAppearances.filter((pa) => isHit(pa.result));
+        const rispAvg = rispAtBats.length > 0 ? rispHits.length / rispAtBats.length : 0;
+
         // 三振率 = 三振 / 打席数 (K%)
         const strikeoutRate = appearances.length > 0 ? strikeouts.length / appearances.length : 0;
 
@@ -220,6 +226,7 @@ export function aggregateBatting(
             obp,
             slg,
             ops,
+            rispAvg,
             strikeoutRate,
             directionBreakdown,
             battedBallBreakdown,

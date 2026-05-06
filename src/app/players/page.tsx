@@ -243,6 +243,19 @@ function PlayersPageContent() {
                                         value: playerBatting.ops.toFixed(3),
                                         highlight: true,
                                     },
+                                    {
+                                        label: "長打率",
+                                        value: `.${(playerBatting.slg * 1000)
+                                            .toFixed(0)
+                                            .padStart(3, "0")}`,
+                                    },
+                                    {
+                                        label: "得点圏打率",
+                                        value: `.${(playerBatting.rispAvg * 1000)
+                                            .toFixed(0)
+                                            .padStart(3, "0")}`,
+                                        highlight: true,
+                                    },
                                     { label: "打点", value: `${playerBatting.rbi}` },
                                     { label: "得点", value: `${playerBatting.runs}`, highlight: true },
                                     { label: "盗塁", value: `${playerBatting.stolenBases}`, highlight: true },

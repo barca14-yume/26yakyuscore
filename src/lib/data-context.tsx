@@ -4,7 +4,7 @@
  * Baseball Ops Dashboard - データコンテキスト
  * アプリ全体でデータを共有するためのContext API実装
  */
-import React, { createContext, useContext, useState, useCallback, useMemo, ReactNode, useEffect } from "react";
+import React, { createContext, useContext, useState, useCallback, useMemo, ReactNode, useEffect, useRef } from "react";
 import {
     AppData,
     GameMetadata,
@@ -96,8 +96,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
                 });
             } else {
                 // localStorageにデータなし（初回起動・ポート変更・キャッシュクリア等）
-                // dummyDataを保存しないよう空配列で初期化する
-                console.warn("localStorageにデータが見つかりません。CSVからインポートしてください。");
+                console.warn("localStorageにデータが見つかりません。新規データとして初期化します。");
                 setState({
                     data: {
                         players: [],
@@ -110,8 +109,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
                 });
             }
         } catch (e) {
-            // JSON解析失敗時：壊れたデータを空データで上書きしないようskipNextSaveは変更しない
-            console.error("localStorageのデータ解析に失敗しました。データをリセットします。", e);
+            console.error("localStorageのデータ解析に失敗しました。", e);
             setState({
                 data: {
                     players: [],
@@ -127,15 +125,23 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
     // データが変更されたらlocalStorageに保存する（初回ロード直後はスキップ）
     useEffect(() => {
-        if (isLoaded) {
-            if (skipNextSave.current) {
-                // 初回ロード直後の保存をスキップ（空データ/dummyDataの上書き防止）
-                skipNextSave.current = false;
-                return;
-            }
+        if (!isLoaded) return;
+
+        if (skipNextSave.current) {
+            // 初回ロード直後の保存をスキップ（空データによる上書き防止）
+            console.log("初回ロードのため保存をスキップします");
+            skipNextSave.current = false;
+            return;
+        }
+
+        // 保存前にデータが空でないか、あるいは意図的な操作かを確認するガードを入れることも可能ですが、
+        // 基本的には変更があれば保存します。
+        const timer = setTimeout(() => {
             console.log("localStorageにデータを保存します", data);
             localStorage.setItem("yakyuscore-data", JSON.stringify(data));
-        }
+        }, 500); // 頻繁な保存を避けるためのデバウンス
+
+        return () => clearTimeout(timer);
     }, [data, isLoaded]);
 
     /** 選手名一覧をメモ化 */

@@ -14,6 +14,7 @@ import {
     Activity,
     Trash2,
 } from "lucide-react";
+import { useData } from "@/lib/data-context";
 
 /** ナビゲーション項目 */
 const NAV_ITEMS = [
@@ -23,6 +24,7 @@ const NAV_ITEMS = [
 ];
 
 export default function Navigation() {
+    const { resetData, clearAllData, cleanOrphanData } = useData();
     const pathname = usePathname();
 
     return (
@@ -98,26 +100,8 @@ export default function Navigation() {
                     <button
                         onClick={() => {
                             if (window.confirm("試合データが存在しない「不明な打席・投手データ」をすべて削除して整理しますか？")) {
-                                const stored = localStorage.getItem("yakyuscore-data");
-                                if (stored) {
-                                    try {
-                                        const parsed = JSON.parse(stored);
-                                        const validGameIds = new Set(parsed.games.map((g: any) => g.id));
-                                        
-                                        // 孤立データをフィルタリング
-                                        const cleanData = {
-                                            ...parsed,
-                                            plateAppearances: parsed.plateAppearances.filter((pa: any) => validGameIds.has(pa.gameId)),
-                                            pitchingStats: parsed.pitchingStats.filter((ps: any) => validGameIds.has(ps.gameId)),
-                                        };
-                                        
-                                        localStorage.setItem("yakyuscore-data", JSON.stringify(cleanData));
-                                        alert("不要なデータ（孤立した成績）の整理が完了しました。");
-                                        window.location.reload();
-                                    } catch(e) {
-                                        alert("データの整理に失敗しました。");
-                                    }
-                                }
+                                cleanOrphanData();
+                                alert("不要なデータ（孤立した成績）の整理が完了しました。");
                             }
                         }}
                         className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-orange-200 dark:border-orange-900 bg-orange-50 text-orange-600 dark:bg-orange-950/30 dark:text-orange-400 text-xs font-medium hover:bg-orange-100 dark:hover:bg-orange-900/50 transition-colors"
@@ -128,25 +112,18 @@ export default function Navigation() {
                     <button
                         onClick={() => {
                             if (window.confirm("現在のデータをすべて消去して、一から入力を始めますか？\n（現在保存されているデータは失われます）")) {
-                                const emptyData = {
-                                    players: [],
-                                    games: [],
-                                    plateAppearances: [],
-                                    pitchingStats: [],
-                                };
-                                localStorage.setItem("yakyuscore-data", JSON.stringify(emptyData));
-                                window.location.reload();
+                                clearAllData();
                             }
                         }}
                         className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-red-200 dark:border-red-900 bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-400 text-xs font-medium hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors"
                     >
+                        <Trash2 className="h-3.5 w-3.5" />
                         全データを消去（新規作成）
                     </button>
                     <button
                         onClick={() => {
                             if (window.confirm("サンプルデータ（デモ用）を復元しますか？\n（現在保存されているデータは失われます）")) {
-                                localStorage.removeItem("yakyuscore-data");
-                                window.location.reload();
+                                resetData();
                             }
                         }}
                         className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-border bg-muted/50 text-muted-foreground text-[10px] font-medium hover:bg-muted transition-colors"

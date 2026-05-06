@@ -81,6 +81,7 @@ interface PAInput {
     rbi: number;
     runs: number;
     stolenBases: number;
+    isRisp: boolean;
 }
 
 /** 投手入力の型 */
@@ -109,6 +110,7 @@ function emptyPA(): PAInput {
         rbi: 0,
         runs: 0,
         stolenBases: 0,
+        isRisp: false,
     };
 }
 
@@ -280,6 +282,7 @@ export default function GameInputForm() {
                     rbi: pa.rbi,
                     runs: pa.runs,
                     stolenBases: pa.stolenBases,
+                    isRisp: pa.isRisp || false,
                 })));
             } else {
                 setPaInputs([emptyPA()]);
@@ -507,6 +510,7 @@ export default function GameInputForm() {
                 rbi: pa.rbi,
                 runs: pa.runs,
                 stolenBases: pa.stolenBases,
+                isRisp: pa.isRisp,
             }));
 
         // 投手成績
@@ -880,6 +884,17 @@ export default function GameInputForm() {
                                         }
                                         className="h-8 text-xs"
                                     />
+                                </div>
+                                <div className="flex flex-col justify-end pb-0.5">
+                                    <button
+                                        onClick={() => updatePA(index, "isRisp", !pa.isRisp)}
+                                        className={`h-8 px-3 rounded-md text-[10px] font-bold transition-all duration-200 ${pa.isRisp
+                                            ? "bg-amber-100 text-amber-700 ring-1 ring-amber-400"
+                                            : "bg-muted text-muted-foreground hover:bg-muted/80"
+                                            }`}
+                                    >
+                                        得点圏
+                                    </button>
                                 </div>
                             </div>
 

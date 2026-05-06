@@ -69,6 +69,8 @@ export interface PlateAppearance {
     rbi: number;
     runs: number;
     stolenBases: number;
+    /** 得点圏かどうか（得点圏打率計算用） */
+    isRisp?: boolean;
 }
 
 /** 投手成績（試合ごと） */
@@ -123,6 +125,8 @@ export interface BattingAggregation {
     obp: number;
     slg: number;
     ops: number;
+    /** 得点圏打率 */
+    rispAvg: number;
     /** 三振率 = 三振 / 打席数 (K%) */
     strikeoutRate: number;
     /** 打球方向分布 */
