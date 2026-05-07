@@ -137,8 +137,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
         // 保存前にデータが空でないか、あるいは意図的な操作かを確認するガードを入れることも可能ですが、
         // 基本的には変更があれば保存します。
         const timer = setTimeout(() => {
-            console.log("localStorageにデータを保存します", data);
-            localStorage.setItem("yakyuscore-data", JSON.stringify(data));
+            try {
+                console.log("localStorageにデータを保存します", data);
+                localStorage.setItem("yakyuscore-data", JSON.stringify(data));
+            } catch (e) {
+                console.error("localStorageへの保存に失敗しました。容量制限(5MB)を超えている可能性があります。", e);
+                // 開発者向けに詳細な情報を出力
+                if (e instanceof Error && e.name === 'QuotaExceededError') {
+                    alert("【保存失敗】データの容量制限を超えました。不要な画像を削除するか、データをエクスポートして整理してください。");
+                }
+            }
         }, 500); // 頻繁な保存を避けるためのデバウンス
 
         return () => clearTimeout(timer);

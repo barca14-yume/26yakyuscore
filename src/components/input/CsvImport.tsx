@@ -44,13 +44,13 @@ const CSV_TYPES: { value: CsvType; label: string; description: string }[] = [
         value: "batting",
         label: "打席データ",
         description:
-            "gameId, playerName, inning, result, battedBallType, battedBallDirection, rbi, runs, stolenBases",
+            "gameId, playerName, inning, result, battedBallType, battedBallDirection, rbi, runs, stolenBases, isRisp",
     },
     {
         value: "pitching",
         label: "投手成績",
         description:
-            "gameId, playerName, ip, runsAllowed, earnedRuns, hits, walks, strikeouts, totalPitches, strikes, balls",
+            "id, gameId, playerName, ip, runsAllowed, earnedRuns, hits, walks, strikeouts, totalPitches, strikes, balls",
     },
 ];
 
@@ -99,6 +99,13 @@ export default function CsvImport() {
     /** データをインポート */
     const handleImport = useCallback(() => {
         if (!preview) return;
+
+        if (importMode === "overwrite") {
+            const confirmed = window.confirm(
+                "【警告】既存のデータをすべて削除して、このファイルの内容で上書きします。本当によろしいですか？\n(バックアップが必要な場合は、先にエクスポートを実行してください)"
+            );
+            if (!confirmed) return;
+        }
 
         const executeImport = importMode === "add" ? importData : overwriteImportData;
 
@@ -153,6 +160,7 @@ export default function CsvImport() {
                             scoreAgainst: Number(getVal(["scoreagainst", "失点", "相手チーム得点", "相手チーム"])) || 0,
                             gameType: (getVal(["type", "game", "種類", "種別", "gametype"]) as GameType) || "official",
                             officialGameName: getVal(["officialgamename", "officialname", "公式戦名", "大会名", "game name"]),
+                            scoreboardImageUrl: getVal(["scoreboardimageurl", "scoreboard", "image", "画像"]),
                         };
                     });
                     executeImport({ games });
@@ -201,6 +209,7 @@ export default function CsvImport() {
                             rbi: Number(getVal(["rbi", "打点"])) || 0,
                             runs: Number(getVal(["run", "得点"])) || 0,
                             stolenBases: Number(getVal(["stolenbases", "stolen", "stolenbase", "盗塁"])) || 0,
+                            isRisp: getVal(["isrisp", "risp", "得点圏"]) === "true" || getVal(["isrisp", "risp", "得点圏"]) === "1",
                         };
                     });
                     executeImport({ plateAppearances: pas });
@@ -268,6 +277,7 @@ export default function CsvImport() {
                     rbi: pa.rbi,
                     runs: pa.runs,
                     stolenBases: pa.stolenBases,
+                    isRisp: pa.isRisp ? "true" : "false",
                 }));
                 csvContent = Papa.unparse(battingRows);
                 fileName = "batting_export.csv";
@@ -276,6 +286,7 @@ export default function CsvImport() {
             case "pitching":
                 // カラム名をインポート形式に合わせる
                 const pStats = data.pitchingStats.map(s => ({
+                    id: s.id,
                     gameId: s.gameId,
                     playerName: s.playerName,
                     ip: s.inningsPitched,
@@ -321,7 +332,7 @@ export default function CsvImport() {
                 break;
             case "batting":
                 csvContent =
-                    "gameId,playerName,inning,result,battedBallType,battedBallDirection,rbi,runs,stolenBases\ngame-001,田中 翔太,1,single,liner,center,1,1,1";
+                    "gameId,playerName,inning,result,battedBallType,battedBallDirection,rbi,runs,stolenBases,isRisp\ngame-001,田中 翔太,1,single,liner,center,1,1,1,true";
                 break;
             case "pitching":
                 csvContent =
