@@ -62,7 +62,7 @@ export default function TeamOverview({ battingStats, limit = 8, totalGames }: Te
     // 直近5試合打率(recentAvg)の場合は、直近4試合以内にデータがある選手のみを対象とする
     const qualifiedBatters = battingStats.filter(b => {
         if (sortBy === "recentAvg") {
-            return b.hasRecent4GamesData === true;
+            return b.hasRecent5GamesData === true;
         }
         return isRateMetric ? b.plateAppearances >= minPA : true;
     });

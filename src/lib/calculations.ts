@@ -125,14 +125,14 @@ export function aggregateBatting(
         return resolved;
     };
 
-    // 直近4試合のゲームIDを取得
-    const teamRecent4GameIds = new Set<string>();
+    // 直近5試合のゲームIDを取得
+    const teamRecent5GameIds = new Set<string>();
     if (games && games.length > 0) {
         const sortedGames = [...games].sort(
             (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
         );
-        const recent4 = sortedGames.slice(-4);
-        recent4.forEach(g => teamRecent4GameIds.add(g.id));
+        const recent5 = sortedGames.slice(-5);
+        recent5.forEach(g => teamRecent5GameIds.add(g.id));
     }
 
     // 選手ごとに打席をグループ化
@@ -189,15 +189,15 @@ export function aggregateBatting(
         // OPS = 出塁率 + 長打率
         const ops = obp + slg;
 
-        // 直近4試合の打率
-        const recentAppearances = appearances.filter(pa => teamRecent4GameIds.has(pa.gameId));
+
+        const recentAppearances = appearances.filter(pa => teamRecent5GameIds.has(pa.gameId));
         const recentAtBats = recentAppearances.filter(pa => isAtBat(pa.result));
         const recentHits = recentAppearances.filter(pa => isHit(pa.result));
         const recentAvg = recentAtBats.length > 0 ? recentHits.length / recentAtBats.length : 0;
         
-        let hasRecent4GamesData = true;
-        if (teamRecent4GameIds.size > 0) {
-            hasRecent4GamesData = appearances.some(pa => teamRecent4GameIds.has(pa.gameId));
+        let hasRecent5GamesData = true;
+        if (teamRecent5GameIds.size > 0) {
+            hasRecent5GamesData = appearances.some(pa => teamRecent5GameIds.has(pa.gameId));
         }
 
         // --- セイバーメトリクス指標の追加計算 ---
@@ -260,7 +260,7 @@ export function aggregateBatting(
             slg,
             ops,
             recentAvg,
-            hasRecent4GamesData,
+            hasRecent5GamesData,
             bbK,
             bbPercentage,
             isop,

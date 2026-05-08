@@ -143,8 +143,8 @@ export interface BattingAggregation {
     };
     /** 直近5試合の打率 */
     recentAvg?: number;
-    /** チームの直近4試合にデータ（打席）があるかどうか */
-    hasRecent4GamesData?: boolean;
+    /** チームの直近5試合にデータ（打席）があるかどうか */
+    hasRecent5GamesData?: boolean;
     /** BB/K (四球/三振) */
     bbK: number;
     /** BB% (四球率) */
