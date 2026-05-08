@@ -20,13 +20,16 @@ import { getDisplayName } from "@/lib/utils";
 import BattingBreakdown from "@/components/player/BattingBreakdown";
 import TrendChart from "@/components/player/TrendChart";
 import PlayerAtBatLog from "@/components/player/PlayerAtBatLog";
+import MetricsExplanationDialog from "@/components/shared/MetricsExplanationDialog";
 import {
     Users,
     User,
     TrendingUp,
     Zap,
     ChevronRight,
+    Sparkles,
 } from "lucide-react";
+import Link from "next/link";
 
 /** Suspenseラッパー */
 export default function PlayersPage() {
@@ -73,8 +76,8 @@ function PlayersPageContent() {
 
     // 全選手の打撃集計
     const allBattingStats = useMemo(
-        () => aggregateBatting(filteredPA, data.players),
-        [filteredPA, data.players]
+        () => aggregateBatting(filteredPA, data.players, undefined, data.games),
+        [filteredPA, data.players, data.games]
     );
 
     // 全選手の投球集計
@@ -216,9 +219,12 @@ function PlayersPageContent() {
                     {/* 打撃基本成績 */}
                     <Card className="border-border/50 shadow-sm">
                         <CardHeader className="pb-2">
-                            <CardTitle className="text-sm flex items-center gap-2">
-                                <TrendingUp className="h-4 w-4 text-emerald-500" />
-                                打撃成績
+                            <CardTitle className="text-sm flex items-center justify-between w-full">
+                                <div className="flex items-center gap-2">
+                                    <TrendingUp className="h-4 w-4 text-emerald-500" />
+                                    打撃成績
+                                </div>
+                                <MetricsExplanationDialog />
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
@@ -268,6 +274,27 @@ function PlayersPageContent() {
                                     {
                                         label: "三振率",
                                         value: `${(playerBatting.strikeoutRate * 100).toFixed(1)}%`,
+                                        highlight: true,
+                                    },
+                                    {
+                                        label: "BB/K",
+                                        value: playerBatting.bbK.toFixed(2),
+                                    },
+                                    {
+                                        label: "BB%",
+                                        value: `${(playerBatting.bbPercentage * 100).toFixed(1)}%`,
+                                    },
+                                    {
+                                        label: "IsoP",
+                                        value: playerBatting.isop.toFixed(3),
+                                    },
+                                    {
+                                        label: "BABIP",
+                                        value: `.${(playerBatting.babip * 1000).toFixed(0).padStart(3, "0")}`,
+                                    },
+                                    {
+                                        label: "RC",
+                                        value: playerBatting.rc.toFixed(2),
                                         highlight: true,
                                     },
                                     { label: "犠打", value: `${playerBatting.sacrifices}` },
@@ -444,6 +471,34 @@ function PlayersPageContent() {
                     </Card>
                 </div>
             )}
+
+            {/* おすすめスタメンへのリンク */}
+            <div className="animate-fade-in-up pt-4" style={{ animationDelay: "0.2s" }}>
+                <Link href="/lineup/recommend" className="block">
+                    <Card className="border-emerald-200 dark:border-emerald-900 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/40 dark:to-teal-900/40 shadow-sm hover:shadow-md transition-all group overflow-hidden relative">
+                        <div className="absolute right-0 top-0 w-32 h-32 bg-gradient-to-br from-emerald-500/10 to-teal-500/10 rounded-full blur-2xl -mr-10 -mt-10 transition-transform group-hover:scale-150 duration-700"></div>
+                        <CardContent className="p-4 sm:p-5 flex items-center justify-between relative z-10">
+                            <div className="flex items-center gap-3 sm:gap-4">
+                                <div className="flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-900/50 dark:text-emerald-400 group-hover:scale-110 transition-transform duration-300">
+                                    <Sparkles className="h-5 w-5 sm:h-6 sm:w-6" />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-sm sm:text-base text-emerald-900 dark:text-emerald-100 flex items-center gap-2">
+                                        AIおすすめスタメン生成
+                                        <Badge className="bg-emerald-500 hover:bg-emerald-600 text-[9px] px-1.5 py-0">New</Badge>
+                                    </h3>
+                                    <p className="text-xs text-emerald-700/80 dark:text-emerald-300/80 mt-0.5">
+                                        直近5試合の成績から最適な打順を提案します
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="bg-white/50 dark:bg-black/20 p-2 rounded-full text-emerald-600 dark:text-emerald-400 group-hover:bg-emerald-500 group-hover:text-white transition-colors">
+                                <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5" />
+                            </div>
+                        </CardContent>
+                    </Card>
+                </Link>
+            </div>
         </div>
     );
 }

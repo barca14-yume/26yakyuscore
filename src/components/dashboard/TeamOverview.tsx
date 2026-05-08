@@ -11,6 +11,7 @@ import { BattingAggregation } from "@/lib/types";
 import { BarChart3, ChevronRight, ArrowUpDown } from "lucide-react";
 import { useData } from "@/lib/data-context";
 import { getDisplayName } from "@/lib/utils";
+import MetricsExplanationDialog from "@/components/shared/MetricsExplanationDialog";
 
 /** ソート可能な打撃指標のキーとラベル */
 type SortOption = {
@@ -23,17 +24,23 @@ type SortOption = {
 
 const SORT_OPTIONS: SortOption[] = [
     { key: "avg", label: "打率", format: "avg" },
+    { key: "recentAvg", label: "直近5試合打率", format: "avg" },
     { key: "rispAvg", label: "得点圏打率", format: "avg" },
     { key: "ops", label: "OPS", format: "ops" },
     { key: "slg", label: "長打率", format: "ops" },
+    { key: "obp", label: "出塁率", format: "avg" },
+    { key: "isop", label: "IsoP (純長打率)", format: "ops" },
+    { key: "babip", label: "BABIP (インプレー打率)", format: "avg" },
     { key: "homeruns", label: "本塁打", format: "number" },
     { key: "rbi", label: "打点", format: "number" },
+    { key: "rc", label: "RC (得点創出)", format: "ops" },
     { key: "runs", label: "得点", format: "number" },
-    { key: "obp", label: "出塁率", format: "avg" },
     { key: "hits", label: "安打", format: "number" },
     { key: "stolenBases", label: "盗塁", format: "number" },
     { key: "walks", label: "四球", format: "number" },
+    { key: "bbPercentage", label: "BB% (四球率)", format: "percent" },
     { key: "sacrifices", label: "犠打", format: "number" },
+    { key: "bbK", label: "BB/K (四球/三振)", format: "ops" },
     { key: "strikeouts", label: "三振", format: "number" },
     { key: "strikeoutRate", label: "三振率", format: "percent", ascending: true },
 ];
@@ -47,13 +54,18 @@ interface TeamOverviewProps {
 export default function TeamOverview({ battingStats, limit = 8, totalGames }: TeamOverviewProps) {
     const { playerNames } = useData();
     const [sortBy, setSortBy] = React.useState<keyof BattingAggregation>("avg");
-    const isRateMetric = ["avg", "rispAvg", "ops", "slg", "obp", "strikeoutRate"].includes(sortBy);
-    const minPA = totalGames;
+    const isRateMetric = ["avg", "recentAvg", "rispAvg", "ops", "slg", "obp", "strikeoutRate", "bbPercentage", "isop", "babip", "rc", "bbK"].includes(sortBy);
+    // 規定打席: チーム試合数 × 0.8 (四捨五入)
+    const minPA = Math.round(totalGames * 0.8);
 
     // 規定打席に基づいてフィルタリング
-    const qualifiedBatters = isRateMetric
-        ? battingStats.filter(b => b.plateAppearances >= minPA)
-        : battingStats;
+    // 直近5試合打率(recentAvg)の場合は、直近4試合以内にデータがある選手のみを対象とする
+    const qualifiedBatters = battingStats.filter(b => {
+        if (sortBy === "recentAvg") {
+            return b.hasRecent4GamesData === true;
+        }
+        return isRateMetric ? b.plateAppearances >= minPA : true;
+    });
 
     // 選択された指標でソートし、上位を取得
     const currentOption = SORT_OPTIONS.find((opt) => opt.key === sortBy) || SORT_OPTIONS[0];
@@ -94,10 +106,12 @@ export default function TeamOverview({ battingStats, limit = 8, totalGames }: Te
                         </span>
                     )}
                 </CardTitle>
-                <div className="flex items-center gap-1.5 ml-2">
-                    <ArrowUpDown className="h-3 w-3 text-muted-foreground" />
-                    <select
-                        value={sortBy}
+                <div className="flex items-center gap-2">
+                    <MetricsExplanationDialog />
+                    <div className="flex items-center gap-1.5 ml-2">
+                        <ArrowUpDown className="h-3 w-3 text-muted-foreground" />
+                        <select
+                            value={sortBy}
                         onChange={(e) => setSortBy(e.target.value as keyof BattingAggregation)}
                         className="h-7 text-xs bg-muted border-none rounded-md px-2 font-medium cursor-pointer hover:bg-muted/80 focus:ring-1 focus:ring-emerald-500 transition-colors"
                     >
@@ -107,6 +121,7 @@ export default function TeamOverview({ battingStats, limit = 8, totalGames }: Te
                             </option>
                         ))}
                     </select>
+                    </div>
                 </div>
             </CardHeader>
             <CardContent className="space-y-1.5">
@@ -154,8 +169,8 @@ export default function TeamOverview({ battingStats, limit = 8, totalGames }: Te
                                     {formatValue(statValue, currentOption.format)}
                                 </p>
                                 <p className="text-[10px] text-muted-foreground whitespace-nowrap">
-                                    {currentOption.key !== "avg" && `打率 .${(batter.avg * 1000).toFixed(0).padStart(3, "0")} `}
-                                    {currentOption.key === "avg" && `${batter.rbi}点 ${batter.runs}得 ${batter.stolenBases}盗`}
+                                    {(currentOption.key !== "avg" && currentOption.key !== "recentAvg") && `打率 .${(batter.avg * 1000).toFixed(0).padStart(3, "0")} `}
+                                    {(currentOption.key === "avg" || currentOption.key === "recentAvg") && `${batter.rbi}点 ${batter.runs}得 ${batter.stolenBases}盗`}
                                 </p>
                             </div>
 

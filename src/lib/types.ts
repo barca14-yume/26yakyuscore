@@ -141,6 +141,20 @@ export interface BattingAggregation {
         liner: number;
         fly: number;
     };
+    /** 直近5試合の打率 */
+    recentAvg?: number;
+    /** チームの直近4試合にデータ（打席）があるかどうか */
+    hasRecent4GamesData?: boolean;
+    /** BB/K (四球/三振) */
+    bbK: number;
+    /** BB% (四球率) */
+    bbPercentage: number;
+    /** IsoP (純粋長打率) */
+    isop: number;
+    /** BABIP (インプレー打率) */
+    babip: number;
+    /** RC (得点創出) */
+    rc: number;
 }
 
 /** 投手成績集計（選手単位） */
@@ -159,4 +173,23 @@ export interface PitchingAggregation {
     era: number;
     strikePercentage: number;
     whip: number;
+}
+
+/** ラインナップ生成の戦略パターン */
+export type LineupStrategy = "balanced" | "rc_focused" | "obp_focused" | "risp_focused";
+
+/** 生成されたおすすめ打順の1枠 */
+export interface RecommendedBatter {
+    order: number;
+    playerName: string;
+    reason: string;
+    stats: BattingAggregation; // この選手の直近5試合成績
+}
+
+/** おすすめラインナップ全体 */
+export interface RecommendedLineup {
+    strategy: LineupStrategy;
+    strategyName: string;
+    description: string;
+    batters: RecommendedBatter[];
 }

@@ -56,7 +56,7 @@ export default function DashboardPage() {
   const teamAvg = calcTeamBattingAvg(filteredPA);
   const teamERA = calcTeamERA(filteredPitching);
   const winLoss = calcWinLossRecord(filteredGames);
-  const battingStats = aggregateBatting(filteredPA, data.players);
+  const battingStats = aggregateBatting(filteredPA, data.players, undefined, filteredGames);
   const pitchingStats = aggregatePitching(filteredPitching, data.players);
 
   // 勝率

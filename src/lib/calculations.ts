@@ -11,6 +11,9 @@ import {
     GameMetadata,
     Player,
     BattedBallDirection,
+    LineupStrategy,
+    RecommendedLineup,
+    RecommendedBatter,
 } from "./types";
 
 /** 安打に該当する打席結果 */
@@ -59,7 +62,8 @@ function getPositionCategory(pos: BattedBallDirection, batHand: string): "pull" 
 export function aggregateBatting(
     plateAppearances: PlateAppearance[],
     players: Player[] = [],
-    playerName?: string
+    playerName?: string,
+    games: GameMetadata[] = []
 ): BattingAggregation[] {
     // 選手マスタをMap化
     const playerMap = new Map<string, Player>();
@@ -118,13 +122,20 @@ export function aggregateBatting(
             return paName; // 一致しなければ元の文字列
         })();
 
-        if (paName.includes("米") || paName.includes("沢") || paName.includes("澤")) {
-            console.log(`[DEBUG resolvePlayerName] paName: "${paName}" -> resolved: "${resolved}"`);
-        }
         return resolved;
     };
 
-    // 選手名でグループ化
+    // 直近4試合のゲームIDを取得
+    const teamRecent4GameIds = new Set<string>();
+    if (games && games.length > 0) {
+        const sortedGames = [...games].sort(
+            (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+        );
+        const recent4 = sortedGames.slice(-4);
+        recent4.forEach(g => teamRecent4GameIds.add(g.id));
+    }
+
+    // 選手ごとに打席をグループ化
     const grouped = new Map<string, PlateAppearance[]>();
 
     // まず全選手を初期化（成績が0でも表示されるようにする）
@@ -178,6 +189,28 @@ export function aggregateBatting(
         // OPS = 出塁率 + 長打率
         const ops = obp + slg;
 
+        // 直近4試合の打率
+        const recentAppearances = appearances.filter(pa => teamRecent4GameIds.has(pa.gameId));
+        const recentAtBats = recentAppearances.filter(pa => isAtBat(pa.result));
+        const recentHits = recentAppearances.filter(pa => isHit(pa.result));
+        const recentAvg = recentAtBats.length > 0 ? recentHits.length / recentAtBats.length : 0;
+        
+        let hasRecent4GamesData = true;
+        if (teamRecent4GameIds.size > 0) {
+            hasRecent4GamesData = appearances.some(pa => teamRecent4GameIds.has(pa.gameId));
+        }
+
+        // --- セイバーメトリクス指標の追加計算 ---
+        const bbK = strikeouts.length > 0 ? walks.length / strikeouts.length : walks.length;
+        const bbPercentage = appearances.length > 0 ? walks.length / appearances.length : 0;
+        const isop = slg - avg;
+
+        const babipDenominator = atBats.length - strikeouts.length - homeruns.length + sacrifices.length;
+        const babip = babipDenominator > 0 ? (hits.length - homeruns.length) / babipDenominator : 0;
+
+        const rcDenominator = atBats.length + walks.length + hbp.length;
+        const rc = rcDenominator > 0 ? ((hits.length + walks.length + hbp.length) * totalBases) / rcDenominator : 0;
+
         // 得点圏打率 = 得点圏での安打 / 得点圏での打数
         const rispAppearances = appearances.filter((pa) => pa.isRisp);
         const rispAtBats = rispAppearances.filter((pa) => isAtBat(pa.result));
@@ -226,6 +259,13 @@ export function aggregateBatting(
             obp,
             slg,
             ops,
+            recentAvg,
+            hasRecent4GamesData,
+            bbK,
+            bbPercentage,
+            isop,
+            babip,
+            rc,
             rispAvg,
             strikeoutRate,
             directionBreakdown,
@@ -449,3 +489,153 @@ export function calcRecentBattingTrend(
         };
     });
 }
+
+export function aggregateRecentBatting(
+    plateAppearances: PlateAppearance[],
+    games: GameMetadata[],
+    players: Player[],
+    recentGamesCount: number = 5
+): BattingAggregation[] {
+    // チームの直近N試合を取得
+    const sortedGames = [...games].sort(
+        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+    const recentGames = sortedGames.slice(-recentGamesCount);
+    const recentGameIds = new Set(recentGames.map((g) => g.id));
+
+    // その試合の打席データだけを抽出
+    const recentPAs = plateAppearances.filter((pa) => recentGameIds.has(pa.gameId));
+
+    // aggregateBattingで計算
+    return aggregateBatting(recentPAs, players, undefined, recentGames);
+}
+
+export function generateRecommendedLineup(
+    recentStats: BattingAggregation[],
+    strategy: LineupStrategy
+): RecommendedLineup {
+    // 特別ルール1: 「松下」は退団済みのためスタメン候補から除外
+    const activeStats = recentStats.filter(s => !s.playerName.includes("松下"));
+
+    // まず、直近で打席に立っている選手（2打席以上）をフィルタリング
+    const candidates = activeStats.filter(s => s.plateAppearances >= 2);
+    // もし候補が9人に満たない場合は、除外されていない全選手から選ぶ
+    const pool = candidates.length >= 9 ? candidates : activeStats;
+
+    let batters: RecommendedBatter[] = [];
+    let strategyName = "";
+    let description = "";
+
+    if (strategy === "rc_focused") {
+        strategyName = "超攻撃型 (RC優先)";
+        description = "得点創出能力(RC)が最も高い選手を上位から並べた、とにかく点を取るための攻撃的な打順です。";
+        const sorted = [...pool].sort((a, b) => b.rc - a.rc);
+        batters = sorted.slice(0, 9).map((stats, i) => ({
+            order: i + 1,
+            playerName: stats.playerName,
+            reason: `RC ${stats.rc.toFixed(2)} / 打率 .${(stats.avg * 1000).toFixed(0).padStart(3, "0")}`,
+            stats
+        }));
+    } else if (strategy === "obp_focused") {
+        strategyName = "チャンスメイク (出塁率優先)";
+        description = "出塁率(OBP)を最優先しつつ、盗塁（足の速さ）も加味してランナーを溜めることに特化した打順です。";
+        const sorted = [...pool].sort((a, b) => {
+            const scoreA = a.obp + (a.stolenBases * 0.05);
+            const scoreB = b.obp + (b.stolenBases * 0.05);
+            return scoreB - scoreA;
+        });
+        batters = sorted.slice(0, 9).map((stats, i) => ({
+            order: i + 1,
+            playerName: stats.playerName,
+            reason: `出塁率 .${(stats.obp * 1000).toFixed(0).padStart(3, "0")} / 盗塁 ${stats.stolenBases}`,
+            stats
+        }));
+    } else if (strategy === "risp_focused") {
+        strategyName = "勝負強さ (得点圏打率優先)";
+        description = "得点圏打率や打点の多さを重視し、チャンスで確実に点を取ることを狙った打順です。";
+        const sorted = [...pool].sort((a, b) => {
+            if (b.rispAvg !== a.rispAvg) return b.rispAvg - a.rispAvg;
+            return b.rbi - a.rbi; // 同点なら打点でソート
+        });
+        batters = sorted.slice(0, 9).map((stats, i) => ({
+            order: i + 1,
+            playerName: stats.playerName,
+            reason: `得点圏打率 .${(stats.rispAvg * 1000).toFixed(0).padStart(3, "0")}`,
+            stats
+        }));
+    } else {
+        // balanced
+        strategyName = "総合バランス";
+        description = "上位に出塁率が高い選手、中軸に長打力・得点創出能力(RC)が高い選手を配置した伝統的でバランスの良い打順です。";
+        
+        // RC上位9名を選抜
+        const top9 = [...pool].sort((a, b) => b.rc - a.rc).slice(0, 9);
+        const assigned = new Set<string>();
+        const lineup: RecommendedBatter[] = [];
+
+        const assignBest = (order: number, sortFn: (a: BattingAggregation, b: BattingAggregation) => number, reasonFn: (s: BattingAggregation) => string) => {
+            const available = top9.filter(p => {
+                if (assigned.has(p.playerName)) return false;
+                // 特別ルール2: 「岡﨑」は足が遅いため、1番、2番には配置しない
+                if ((order === 1 || order === 2) && (p.playerName.includes("岡﨑") || p.playerName.includes("岡崎"))) return false;
+                return true;
+            });
+            if (available.length === 0) return;
+            const best = available.sort(sortFn)[0];
+            assigned.add(best.playerName);
+            lineup.push({ order, playerName: best.playerName, reason: reasonFn(best), stats: best });
+        };
+
+        assignBest(1, (a, b) => {
+            const scoreA = a.obp + (a.stolenBases * 0.05);
+            const scoreB = b.obp + (b.stolenBases * 0.05);
+            return scoreB - scoreA;
+        }, s => `出塁率 .${(s.obp * 1000).toFixed(0).padStart(3, "0")} + 盗塁 ${s.stolenBases} (1番適正)`);
+
+        assignBest(2, (a, b) => {
+            const scoreA = a.obp + (a.stolenBases * 0.02);
+            const scoreB = b.obp + (b.stolenBases * 0.02);
+            return scoreB - scoreA;
+        }, s => `出塁率 .${(s.obp * 1000).toFixed(0).padStart(3, "0")} (2番適正)`);
+
+        assignBest(3, (a, b) => b.rc - a.rc, s => `RC ${s.rc.toFixed(2)} / 打率 .${(s.avg * 1000).toFixed(0).padStart(3, "0")} (中軸)`);
+        assignBest(4, (a, b) => {
+            // OPS(70%) と 打率(30%) のバランスで評価（四球だけでなくヒットを打てる人を優先）
+            const scoreA = (a.ops * 0.7) + (a.avg * 0.3);
+            const scoreB = (b.ops * 0.7) + (b.avg * 0.3);
+            return scoreB - scoreA;
+        }, s => `OPS ${s.ops.toFixed(3)} / 打率 .${(s.avg * 1000).toFixed(0).padStart(3, "0")} (4番適正)`);
+        assignBest(5, (a, b) => b.rispAvg - a.rispAvg, s => `得点圏 .${(s.rispAvg * 1000).toFixed(0).padStart(3, "0")}`);
+        
+        for (let i = 6; i <= 9; i++) {
+            assignBest(i, (a, b) => b.rc - a.rc, s => `RC ${s.rc.toFixed(2)}`);
+        }
+
+        batters = lineup;
+    }
+
+    // 各戦略共通の事後処理 (特別ルール2: 岡﨑の配置調整)
+    // 岡﨑がもし1番か2番にいる場合は、下位打線(一番最後尾)の選手と入れ替える
+    const okazakiIndex = batters.findIndex(b => b.playerName.includes("岡﨑") || b.playerName.includes("岡崎"));
+    if (okazakiIndex === 0 || okazakiIndex === 1) {
+        const swapIndex = batters.length - 1; // 候補の中で一番下
+        if (swapIndex > okazakiIndex) {
+            const temp = batters[okazakiIndex];
+            batters[okazakiIndex] = batters[swapIndex];
+            batters[swapIndex] = temp;
+            
+            // 打順(order)を再設定
+            batters.forEach((b, i) => b.order = i + 1);
+            // 理由を追記
+            batters[swapIndex].reason += " ※出塁率は高いが足が遅いため下位に配置";
+        }
+    }
+
+    return {
+        strategy,
+        strategyName,
+        description,
+        batters: batters.sort((a, b) => a.order - b.order)
+    };
+}
+
