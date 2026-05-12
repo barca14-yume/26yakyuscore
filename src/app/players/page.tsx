@@ -13,6 +13,8 @@ import { useData } from "@/lib/data-context";
 import {
     aggregateBatting,
     aggregatePitching,
+    aggregateTeamBatting,
+    aggregateTeamPitching,
     calcRecentBattingTrend,
 } from "@/lib/calculations";
 import { getDisplayName } from "@/lib/utils";
@@ -80,22 +82,34 @@ function PlayersPageContent() {
         [filteredPA, data.players, data.games]
     );
 
+    // チーム全体の打撃集計
+    const teamBattingStats = useMemo(
+        () => aggregateTeamBatting(filteredPA),
+        [filteredPA]
+    );
+
     // 全選手の投球集計
     const allPitchingStats = useMemo(
         () => aggregatePitching(filteredPitching, data.players),
         [filteredPitching, data.players]
     );
 
-    // 選択された選手のデータ
-    const playerBatting = useMemo(
-        () => allBattingStats.find((b) => b.playerName === selectedPlayer),
-        [allBattingStats, selectedPlayer]
+    // チーム全体の投球集計
+    const teamPitchingStats = useMemo(
+        () => aggregateTeamPitching(filteredPitching),
+        [filteredPitching]
     );
 
-    const playerPitching = useMemo(
-        () => allPitchingStats.find((p) => p.playerName === selectedPlayer),
-        [allPitchingStats, selectedPlayer]
-    );
+    // 選択された選手のデータ（未選択ならチーム全体）
+    const playerBatting = useMemo(() => {
+        if (!selectedPlayer) return teamBattingStats;
+        return allBattingStats.find((b) => b.playerName === selectedPlayer);
+    }, [allBattingStats, teamBattingStats, selectedPlayer]);
+
+    const playerPitching = useMemo(() => {
+        if (!selectedPlayer) return teamPitchingStats;
+        return allPitchingStats.find((p) => p.playerName === selectedPlayer);
+    }, [allPitchingStats, teamPitchingStats, selectedPlayer]);
 
     // 打率推移
     const trendData = useMemo(
@@ -103,7 +117,7 @@ function PlayersPageContent() {
             selectedPlayer
                 ? calcRecentBattingTrend(
                     filteredPA,
-                    data.games, // calcRecentBattingTrend は内部でゲーム情報を探すため全ゲームを渡すが、打席はフィルタ済
+                    data.games,
                     selectedPlayer,
                     5
                 )
@@ -152,6 +166,35 @@ function PlayersPageContent() {
                     </CardHeader>
                     <CardContent>
                         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
+                            {/* チーム全体ボタン */}
+                            <button
+                                onClick={() => setSelectedPlayer("")}
+                                className={`flex flex-col items-center gap-1 p-2.5 rounded-xl transition-all duration-200 ${!selectedPlayer
+                                    ? "bg-emerald-50 dark:bg-emerald-950/30 ring-1 ring-emerald-300 dark:ring-emerald-700 shadow-sm"
+                                    : "bg-muted/30 hover:bg-muted/60"
+                                    }`}
+                            >
+                                <div
+                                    className={`flex items-center justify-center w-9 h-9 rounded-full ${!selectedPlayer
+                                        ? "bg-gradient-to-br from-emerald-500 to-teal-600 text-white"
+                                        : "bg-muted text-muted-foreground"
+                                        }`}
+                                >
+                                    <Users className="h-4 w-4" />
+                                </div>
+                                <span
+                                    className={`text-[11px] font-medium text-center leading-tight ${!selectedPlayer
+                                        ? "text-emerald-700 dark:text-emerald-400"
+                                        : "text-muted-foreground"
+                                        }`}
+                                >
+                                    チーム全体
+                                </span>
+                                <span className="text-[10px] tabular-nums text-muted-foreground">
+                                    .{(teamBattingStats.avg * 1000).toFixed(0).padStart(3, "0")}
+                                </span>
+                            </button>
+
                             {playerNames.map((name) => {
                                 const isActive = selectedPlayer === name;
                                 const stats = allBattingStats.find(
@@ -196,19 +239,19 @@ function PlayersPageContent() {
                 </Card>
             </div>
 
-            {/* 選手詳細 */}
-            {selectedPlayer && playerBatting && (
+            {/* 選手・チーム詳細 */}
+            {playerBatting && (
                 <div
                     className="space-y-4 animate-fade-in-up"
                     style={{ animationDelay: "0.15s" }}
                 >
-                    {/* 選手名ヘッダー */}
+                    {/* ヘッダー */}
                     <div className="flex items-center gap-3">
                         <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/20">
-                            <User className="h-6 w-6" />
+                            {selectedPlayer ? <User className="h-6 w-6" /> : <Users className="h-6 w-6" />}
                         </div>
                         <div>
-                            <h2 className="text-lg font-bold">{selectedPlayer}</h2>
+                            <h2 className="text-lg font-bold">{selectedPlayer || "チーム全体"}</h2>
                             <p className="text-xs text-muted-foreground">
                                 {playerBatting.plateAppearances}打席 |{" "}
                                 {playerBatting.atBats}打数 | {playerBatting.hits}安打
@@ -449,8 +492,8 @@ function PlayersPageContent() {
                 </div>
             )}
 
-            {/* 未選択時 */}
-            {!selectedPlayer && (
+            {/* 選手詳細が閉じられた */}
+            {!playerBatting && (
                 <div
                     className="animate-fade-in-up"
                     style={{ animationDelay: "0.15s" }}
@@ -461,12 +504,8 @@ function PlayersPageContent() {
                                 <Users className="h-8 w-8 text-muted-foreground" />
                             </div>
                             <p className="text-sm text-muted-foreground">
-                                上から選手を選択してください
+                                データがありません
                             </p>
-                            <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                                <ChevronRight className="h-3 w-3" />
-                                タップすると詳細成績が表示されます
-                            </div>
                         </CardContent>
                     </Card>
                 </div>

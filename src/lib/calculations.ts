@@ -131,7 +131,7 @@ export function aggregateBatting(
         const sortedGames = [...games].sort(
             (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
         );
-        const recent5 = sortedGames.slice(-5);
+        const recent5 = sortedGames.slice(-5);
         recent5.forEach(g => teamRecent5GameIds.add(g.id));
     }
 
@@ -400,6 +400,129 @@ export function aggregatePitching(
 }
 
 /**
+ * チーム全体の打撃成績を集計する
+ */
+export function aggregateTeamBatting(
+    plateAppearances: PlateAppearance[]
+): BattingAggregation {
+    const appearances = plateAppearances;
+    const atBats = appearances.filter((pa) => isAtBat(pa.result));
+    const hits = appearances.filter((pa) => isHit(pa.result));
+    const doubles = appearances.filter((pa) => pa.result === "double");
+    const triples = appearances.filter((pa) => pa.result === "triple");
+    const homeruns = appearances.filter((pa) => pa.result === "homerun");
+    const walks = appearances.filter((pa) => pa.result === "walk");
+    const hbp = appearances.filter((pa) => pa.result === "hbp");
+    const strikeouts = appearances.filter((pa) => ["strikeout", "strikeout_swinging", "strikeout_looking"].includes(pa.result));
+    const sacrifices = appearances.filter((pa) => pa.result === "sacrifice");
+    const totalRbi = appearances.reduce((sum, pa) => sum + pa.rbi, 0);
+    const totalRuns = appearances.reduce((sum, pa) => sum + (pa.runs || 0), 0);
+    const totalStolenBases = appearances.reduce((sum, pa) => sum + (pa.stolenBases || 0), 0);
+
+    const avg = atBats.length > 0 ? hits.length / atBats.length : 0;
+    const obpDenominator = atBats.length + walks.length + hbp.length + sacrifices.length;
+    const obp = obpDenominator > 0 ? (hits.length + walks.length + hbp.length) / obpDenominator : 0;
+
+    const totalBases = (hits.length - doubles.length - triples.length - homeruns.length) +
+        doubles.length * 2 + triples.length * 3 + homeruns.length * 4;
+    const slg = atBats.length > 0 ? totalBases / atBats.length : 0;
+    const ops = obp + slg;
+
+    const bbK = strikeouts.length > 0 ? walks.length / strikeouts.length : walks.length;
+    const bbPercentage = appearances.length > 0 ? walks.length / appearances.length : 0;
+    const isop = slg - avg;
+    const babipDenominator = atBats.length - strikeouts.length - homeruns.length + sacrifices.length;
+    const babip = babipDenominator > 0 ? (hits.length - homeruns.length) / babipDenominator : 0;
+    const rcDenominator = atBats.length + walks.length + hbp.length;
+    const rc = rcDenominator > 0 ? ((hits.length + walks.length + hbp.length) * totalBases) / rcDenominator : 0;
+
+    const rispAppearances = appearances.filter((pa) => pa.isRisp);
+    const rispAtBats = rispAppearances.filter((pa) => isAtBat(pa.result));
+    const rispHits = rispAppearances.filter((pa) => isHit(pa.result));
+    const rispAvg = rispAtBats.length > 0 ? rispHits.length / rispAtBats.length : 0;
+    const strikeoutRate = appearances.length > 0 ? strikeouts.length / appearances.length : 0;
+
+    const directionBreakdown = { pull: 0, center: 0, opposite: 0 };
+    
+    // 打球タイプ分布
+    const withType = appearances.filter((pa) => pa.battedBallType);
+    const battedBallBreakdown = {
+        grounder: withType.filter((pa) => pa.battedBallType === "grounder").length,
+        liner: withType.filter((pa) => pa.battedBallType === "liner").length,
+        fly: withType.filter((pa) => pa.battedBallType === "fly").length,
+    };
+
+    return {
+        playerName: "チーム全体",
+        plateAppearances: appearances.length,
+        atBats: atBats.length,
+        hits: hits.length,
+        doubles: doubles.length,
+        triples: triples.length,
+        homeruns: homeruns.length,
+        walks: walks.length,
+        hbp: hbp.length,
+        strikeouts: strikeouts.length,
+        sacrifices: sacrifices.length,
+        rbi: totalRbi,
+        runs: totalRuns,
+        stolenBases: totalStolenBases,
+        avg,
+        obp,
+        slg,
+        ops,
+        bbK,
+        bbPercentage,
+        isop,
+        babip,
+        rc,
+        rispAvg,
+        strikeoutRate,
+        directionBreakdown,
+        battedBallBreakdown,
+    };
+}
+
+/**
+ * チーム全体の投手成績を集計する
+ */
+export function aggregateTeamPitching(
+    pitchingStats: PitchingStats[]
+): PitchingAggregation {
+    const totalOuts = pitchingStats.reduce((sum, s) => sum + inningsToOuts(s.inningsPitched), 0);
+    const totalIP = outsToInnings(totalOuts);
+    const totalER = pitchingStats.reduce((sum, s) => sum + s.earnedRuns, 0);
+    const totalRuns = pitchingStats.reduce((sum, s) => sum + s.runsAllowed, 0);
+    const totalHits = pitchingStats.reduce((sum, s) => sum + s.hitsAllowed, 0);
+    const totalWalks = pitchingStats.reduce((sum, s) => sum + s.walksAllowed, 0);
+    const totalK = pitchingStats.reduce((sum, s) => sum + s.strikeouts, 0);
+    const totalPitches = pitchingStats.reduce((sum, s) => sum + s.totalPitches, 0);
+    const totalStrikes = pitchingStats.reduce((sum, s) => sum + s.strikes, 0);
+    const totalBalls = pitchingStats.reduce((sum, s) => sum + s.balls, 0);
+
+    const era = totalOuts > 0 ? (totalER * 7 * 3) / totalOuts : 0;
+    const strikePercentage = totalPitches > 0 ? (totalStrikes / totalPitches) * 100 : 0;
+    const whip = totalOuts > 0 ? (totalWalks + totalHits) / (totalOuts / 3) : 0;
+
+    return {
+        playerName: "チーム全体",
+        games: Array.from(new Set(pitchingStats.map(s => s.gameId))).length,
+        inningsPitched: totalIP,
+        runsAllowed: totalRuns,
+        earnedRuns: totalER,
+        hitsAllowed: totalHits,
+        walksAllowed: totalWalks,
+        strikeouts: totalK,
+        totalPitches,
+        strikes: totalStrikes,
+        balls: totalBalls,
+        era,
+        strikePercentage,
+        whip,
+    };
+}
+
+/**
  * チーム打率を計算する
  */
 export function calcTeamBattingAvg(plateAppearances: PlateAppearance[]): number {
@@ -638,4 +761,3 @@ export function generateRecommendedLineup(
         batters: batters.sort((a, b) => a.order - b.order)
     };
 }
-
