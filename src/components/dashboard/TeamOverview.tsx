@@ -96,31 +96,31 @@ export default function TeamOverview({ battingStats, limit = 8, totalGames }: Te
 
     return (
         <Card className="border-border/50 shadow-sm flex flex-col h-full">
-            <CardHeader className="pb-3 flex flex-row items-center justify-between">
+            <CardHeader className="pb-3 space-y-3">
                 <CardTitle className="flex items-center gap-2 text-base">
                     <BarChart3 className="h-4 w-4 text-muted-foreground" />
                     打撃ランキング
-                    {isRateMetric && (
-                        <span className="text-[10px] font-normal text-muted-foreground bg-muted px-1.5 py-0.5 rounded ml-1">
-                            {minPA}打席以上
-                        </span>
-                    )}
                 </CardTitle>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                    {isRateMetric && (
+                        <div className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground bg-muted/50 px-2 py-1 rounded-md border border-border/50">
+                            <span>{minPA}打席以上</span>
+                        </div>
+                    )}
                     <MetricsExplanationDialog />
-                    <div className="flex items-center gap-1.5 ml-2">
+                    <div className="flex items-center gap-1.5 bg-muted/50 px-2 py-1 rounded-md border border-border/50">
                         <ArrowUpDown className="h-3 w-3 text-muted-foreground" />
                         <select
                             value={sortBy}
-                        onChange={(e) => setSortBy(e.target.value as keyof BattingAggregation)}
-                        className="h-7 text-xs bg-muted border-none rounded-md px-2 font-medium cursor-pointer hover:bg-muted/80 focus:ring-1 focus:ring-emerald-500 transition-colors"
-                    >
-                        {SORT_OPTIONS.map((opt) => (
-                            <option key={opt.key} value={opt.key}>
-                                {opt.label}
-                            </option>
-                        ))}
-                    </select>
+                            onChange={(e) => setSortBy(e.target.value as keyof BattingAggregation)}
+                            className="text-xs bg-transparent border-none p-0 h-auto font-medium cursor-pointer focus:ring-0"
+                        >
+                            {SORT_OPTIONS.map((opt) => (
+                                <option key={opt.key} value={opt.key}>
+                                    {opt.label}
+                                </option>
+                            ))}
+                        </select>
                     </div>
                 </div>
             </CardHeader>

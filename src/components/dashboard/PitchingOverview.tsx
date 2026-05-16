@@ -7,6 +7,7 @@ import { PitchingAggregation } from "@/lib/types";
 import { Shield, ChevronRight, ArrowUpDown } from "lucide-react";
 import { useData } from "@/lib/data-context";
 import { getDisplayName } from "@/lib/utils";
+import MetricsExplanationDialog from "@/components/shared/MetricsExplanationDialog";
 
 /** ソート可能な投手指標のキーとラベル */
 type SortOption = {
@@ -16,14 +17,17 @@ type SortOption = {
     /** 値が小さい方が優秀かどうか */
     isLowerBetter?: boolean;
 };
-
 const SORT_OPTIONS: SortOption[] = [
     { key: "era", label: "防御率", format: "era", isLowerBetter: true },
     { key: "inningsPitched", label: "投球回", format: "number" },
     { key: "strikeouts", label: "奪三振", format: "number" },
+    { key: "strikeoutRate", label: "奪三振率", format: "era" },
     { key: "whip", label: "WHIP", format: "whip", isLowerBetter: true },
+    { key: "kbb", label: "K/BB", format: "era" },
+    { key: "pip", label: "球数/回(P/IP)", format: "era", isLowerBetter: true },
     { key: "strikePercentage", label: "ストライク率", format: "percentage" },
     { key: "walksAllowed", label: "与四死球", format: "number", isLowerBetter: true },
+    { key: "walkRate", label: "与四死球率", format: "era", isLowerBetter: true },
     { key: "runsAllowed", label: "失点", format: "number", isLowerBetter: true },
     { key: "earnedRuns", label: "自責点", format: "number", isLowerBetter: true },
 ];
@@ -75,24 +79,27 @@ export default function PitchingOverview({ pitchingStats, limit = 8 }: PitchingO
 
     return (
         <Card className="border-border/50 shadow-sm flex flex-col h-full">
-            <CardHeader className="pb-3 flex flex-row items-center justify-between">
+            <CardHeader className="pb-3 space-y-3">
                 <CardTitle className="flex items-center gap-2 text-base">
                     <Shield className="h-4 w-4 text-muted-foreground" />
                     投手ランキング
                 </CardTitle>
-                <div className="flex items-center gap-1.5 ml-2">
-                    <ArrowUpDown className="h-3 w-3 text-muted-foreground" />
-                    <select
-                        value={sortBy}
-                        onChange={(e) => setSortBy(e.target.value as keyof PitchingAggregation)}
-                        className="h-7 text-xs bg-muted border-none rounded-md px-2 font-medium cursor-pointer hover:bg-muted/80 focus:ring-1 focus:ring-blue-500 transition-colors"
-                    >
-                        {SORT_OPTIONS.map((opt) => (
-                            <option key={opt.key} value={opt.key}>
-                                {opt.label}
-                            </option>
-                        ))}
-                    </select>
+                <div className="flex flex-wrap items-center gap-2">
+                    <MetricsExplanationDialog />
+                    <div className="flex items-center gap-1.5 bg-muted/50 px-2 py-1 rounded-md border border-border/50">
+                        <ArrowUpDown className="h-3 w-3 text-muted-foreground" />
+                        <select
+                            value={sortBy}
+                            onChange={(e) => setSortBy(e.target.value as keyof PitchingAggregation)}
+                            className="text-xs bg-transparent border-none p-0 h-auto font-medium cursor-pointer focus:ring-0"
+                        >
+                            {SORT_OPTIONS.map((opt) => (
+                                <option key={opt.key} value={opt.key}>
+                                    {opt.label}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
                 </div>
             </CardHeader>
             <CardContent className="space-y-1.5 flex-1">

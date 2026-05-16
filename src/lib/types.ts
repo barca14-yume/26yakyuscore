@@ -173,6 +173,10 @@ export interface PitchingAggregation {
     era: number;
     strikePercentage: number;
     whip: number;
+    strikeoutRate: number;
+    walkRate: number;
+    kbb: number;
+    pip: number;
 }
 
 /** ラインナップ生成の戦略パターン */

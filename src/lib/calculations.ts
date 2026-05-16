@@ -378,6 +378,18 @@ export function aggregatePitching(
         // 投球回に直すときは 投球アウト数 / 3 とする。0アウトの場合は便宜上0とするか回避する
         const whip = totalOuts > 0 ? (totalWalks + totalHits) / (totalOuts / 3) : 0;
 
+        // 奪三振率 (K/7)
+        const strikeoutRate = totalOuts > 0 ? (totalK * 7 * 3) / totalOuts : 0;
+        
+        // 与四死球率 (BB/7)
+        const walkRate = totalOuts > 0 ? (totalWalks * 7 * 3) / totalOuts : 0;
+
+        // K/BB (奪三振 ÷ 与四死球)
+        const kbb = totalWalks > 0 ? totalK / totalWalks : totalK;
+
+        // P/IP (1イニングあたりの投球数)
+        const pip = totalOuts > 0 ? totalPitches / (totalOuts / 3) : 0;
+
         results.push({
             playerName: name,
             games: stats.length,
@@ -393,6 +405,10 @@ export function aggregatePitching(
             era,
             strikePercentage,
             whip,
+            strikeoutRate,
+            walkRate,
+            kbb,
+            pip,
         });
     }
 
@@ -503,6 +519,10 @@ export function aggregateTeamPitching(
     const era = totalOuts > 0 ? (totalER * 7 * 3) / totalOuts : 0;
     const strikePercentage = totalPitches > 0 ? (totalStrikes / totalPitches) * 100 : 0;
     const whip = totalOuts > 0 ? (totalWalks + totalHits) / (totalOuts / 3) : 0;
+    const strikeoutRate = totalOuts > 0 ? (totalK * 7 * 3) / totalOuts : 0;
+    const walkRate = totalOuts > 0 ? (totalWalks * 7 * 3) / totalOuts : 0;
+    const kbb = totalWalks > 0 ? totalK / totalWalks : totalK;
+    const pip = totalOuts > 0 ? totalPitches / (totalOuts / 3) : 0;
 
     return {
         playerName: "チーム全体",
@@ -519,6 +539,10 @@ export function aggregateTeamPitching(
         era,
         strikePercentage,
         whip,
+        strikeoutRate,
+        walkRate,
+        kbb,
+        pip,
     };
 }
 
