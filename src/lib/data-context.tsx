@@ -12,6 +12,7 @@ import {
     PitchingStats,
     Player,
     LineupPattern,
+    Division,
 } from "./types";
 import { dummyData } from "./dummy-data";
 
@@ -83,11 +84,20 @@ export function DataProvider({ children }: { children: ReactNode }) {
             if (savedData) {
                 const parsed = JSON.parse(savedData);
                 console.log("localStorageからデータを読み込みました", parsed);
+
+                // --- マイグレーション: divisionフィールドが欠損している試合に"division1"を付与 ---
+                const migratedGames: GameMetadata[] = Array.isArray(parsed.games)
+                    ? parsed.games.map((g: GameMetadata) => ({
+                          ...g,
+                          division: g.division ?? "division1",
+                      }))
+                    : [];
+
                 // 各配列が欠損している場合は空配列で補完する
                 setState({
                     data: {
                         players: Array.isArray(parsed.players) ? parsed.players : [],
-                        games: Array.isArray(parsed.games) ? parsed.games : [],
+                        games: migratedGames,
                         plateAppearances: Array.isArray(parsed.plateAppearances) ? parsed.plateAppearances : [],
                         pitchingStats: Array.isArray(parsed.pitchingStats) ? parsed.pitchingStats : [],
                         lineupPatterns: Array.isArray(parsed.lineupPatterns) ? parsed.lineupPatterns : [],

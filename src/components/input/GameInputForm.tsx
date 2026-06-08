@@ -22,6 +22,7 @@ import {
     BattedBallDirection,
     GameResult,
     GameType,
+    Division,
 } from "@/lib/types";
 import { getDisplayName } from "@/lib/utils";
 
@@ -156,6 +157,7 @@ export default function GameInputForm() {
     const [scoreFor, setScoreFor] = useState(0);
     const [scoreAgainst, setScoreAgainst] = useState(0);
     const [gameType, setGameType] = useState<GameType>("official");
+    const [division, setDivision] = useState<Division>("division1");
     const [officialGameName, setOfficialGameName] = useState("");
     const [imageBase64, setImageBase64] = useState<string>("");
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -266,6 +268,7 @@ export default function GameInputForm() {
             setScoreFor(game.scoreFor);
             setScoreAgainst(game.scoreAgainst);
             setGameType(game.gameType);
+            setDivision(game.division ?? "division1");
             setOfficialGameName(game.officialGameName || "");
             setImageBase64(game.scoreboardImageUrl || "");
 
@@ -430,7 +433,7 @@ export default function GameInputForm() {
     };
 
     /** 打席データ更新 */
-    const updatePA = (index: number, field: keyof PAInput, value: string | number) => {
+    const updatePA = (index: number, field: keyof PAInput, value: string | number | boolean) => {
         setPaInputs((prev) => {
             const updated = [...prev];
             updated[index] = { ...updated[index], [field]: value };
@@ -478,7 +481,8 @@ export default function GameInputForm() {
                 scoreFor,
                 scoreAgainst,
                 gameType,
-                officialGameName: gameType === "official" ? officialGameName.trim() : undefined,
+                division,
+                officialGameName: gameType === "official" ? officialGameName.trim() || undefined : undefined,
                 scoreboardImageUrl: imageBase64 || undefined,
             };
             addGame(game);
@@ -491,7 +495,8 @@ export default function GameInputForm() {
                 scoreFor,
                 scoreAgainst,
                 gameType,
-                officialGameName: gameType === "official" ? officialGameName.trim() : undefined,
+                division,
+                officialGameName: gameType === "official" ? officialGameName.trim() || undefined : undefined,
                 scoreboardImageUrl: imageBase64 || undefined,
             });
         }
@@ -549,6 +554,7 @@ export default function GameInputForm() {
             setSelectedGameId("");
             setImageBase64("");
             if (fileInputRef.current) fileInputRef.current.value = "";
+            setDivision("division1");
             setStartingLineup(Array(9).fill(""));
             setPaInputs([emptyPA()]);
             setPitchingInputs([emptyPitching()]);
@@ -686,11 +692,40 @@ export default function GameInputForm() {
                         </div>
                     </div>
 
+                    {/* 部カテゴリ選択 */}
+                    <div className="space-y-1.5">
+                        <Label className="text-xs">部カテゴリ</Label>
+                        <div className="flex gap-2">
+                            {([
+                                { value: "division1" as Division, label: "1部", sub: "全員" },
+                                { value: "division2" as Division, label: "2部", sub: "5年以下" },
+                                { value: "division3" as Division, label: "3部", sub: "4年以下" },
+                            ]).map(({ value, label, sub }) => (
+                                <button
+                                    key={value}
+                                    onClick={() => setDivision(value)}
+                                    className={`flex-1 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                                        division === value
+                                            ? "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-400 ring-1 ring-blue-300 dark:ring-blue-700"
+                                            : "bg-muted text-muted-foreground hover:bg-muted/80"
+                                    }`}
+                                >
+                                    <span className="font-bold">{label}</span>
+                                    <span className="text-xs ml-1 opacity-70">({sub})</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
                     {gameType === "official" && (
                         <div className="space-y-1.5 animate-fade-in-up transition-all duration-300">
                             <Label className="text-xs">大会名（フリー記述）</Label>
                             <Input
-                                placeholder="例：秋季大会 1回戦"
+                                placeholder={
+                                    division === "division2" ? "例：新人戦 1回戦" :
+                                    division === "division3" ? "例：プチ 1回戦" :
+                                    "例：秋季大会 1回戦"
+                                }
                                 value={officialGameName}
                                 onChange={(e) => setOfficialGameName(e.target.value)}
                                 className="h-9 text-sm"

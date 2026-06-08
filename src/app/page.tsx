@@ -6,6 +6,7 @@
  */
 import React, { useState, useMemo } from "react";
 import { useData } from "@/lib/data-context";
+import type { Division } from "@/lib/types";
 import {
   calcTeamBattingAvg,
   calcTeamERA,
@@ -19,36 +20,25 @@ import TeamOverview from "@/components/dashboard/TeamOverview";
 import PitchingOverview from "@/components/dashboard/PitchingOverview";
 import { Activity, Trophy, BarChart3, Shield } from "lucide-react";
 
-type GameFilter = "all" | "official" | "practice";
+/** ダッシュボードのフィルター: トータル / 部別 */
+type DivisionFilter = "all" | "division1" | "division2" | "division3";
 
 export default function DashboardPage() {
   const { data } = useData();
-  const [filter, setFilter] = useState<GameFilter>("all");
+  const [filter, setFilter] = useState<DivisionFilter>("all");
 
-  // フィルター適用後のデータ
+  // フィルター適用後のデータ（部カテゴリでフィルタリング）
   const { filteredGames, filteredPA, filteredPitching } = useMemo(() => {
-    if (filter === "all") {
-      // "すべて"の場合は孤立データも合算する
-      return {
-        filteredGames: data.games,
-        filteredPA: data.plateAppearances,
-        filteredPitching: data.pitchingStats,
-      };
-    }
-
-    let fGames = data.games;
-    if (filter === "official") {
-      fGames = data.games.filter(g => g.gameType === "official");
-    } else if (filter === "practice") {
-      fGames = data.games.filter(g => g.gameType === "practice");
-    }
+    const fGames = filter === "all"
+      ? data.games
+      : data.games.filter(g => (g.division ?? "division1") === filter);
 
     const filteredGameIds = new Set(fGames.map(g => g.id));
 
     return {
       filteredGames: fGames,
       filteredPA: data.plateAppearances.filter(pa => filteredGameIds.has(pa.gameId)),
-      filteredPitching: data.pitchingStats.filter(ps => filteredGameIds.has(ps.gameId))
+      filteredPitching: data.pitchingStats.filter(ps => filteredGameIds.has(ps.gameId)),
     };
   }, [data, filter]);
 
@@ -82,18 +72,23 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* フィルタータブ */}
+        {/* フィルタータブ（部カテゴリ） */}
         <div className="flex bg-muted/50 p-1 rounded-xl w-full sm:w-auto">
-          {(["all", "official", "practice"] as GameFilter[]).map((f) => (
+          {([
+            { value: "all" as DivisionFilter, label: "トータル" },
+            { value: "division1" as DivisionFilter, label: "1部" },
+            { value: "division2" as DivisionFilter, label: "2部" },
+            { value: "division3" as DivisionFilter, label: "3部" },
+          ]).map(({ value, label }) => (
             <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`flex-1 sm:px-6 py-2 rounded-lg text-sm font-semibold transition-all duration-300 ${filter === f
+              key={value}
+              onClick={() => setFilter(value)}
+              className={`flex-1 sm:px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-300 ${filter === value
                 ? "bg-white dark:bg-zinc-800 text-emerald-600 dark:text-emerald-400 shadow-sm"
                 : "text-muted-foreground hover:bg-black/5 dark:hover:bg-white/5"
                 }`}
             >
-              {f === "all" ? "すべて" : f === "official" ? "公式戦" : "練習試合"}
+              {label}
             </button>
           ))}
         </div>

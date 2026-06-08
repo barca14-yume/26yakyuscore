@@ -6,6 +6,14 @@
 /** 試合タイプ */
 export type GameType = "official" | "practice";
 
+/**
+ * 部カテゴリ
+ * - division1: 1部（全員対象の試合）
+ * - division2: 2部（5年生以下対象 / 公式=新人戦、練習=2部交流戦）
+ * - division3: 3部（4年生以下対象 / 公式=プチ、練習=3部交流戦）
+ */
+export type Division = "division1" | "division2" | "division3";
+
 /** 試合結果 */
 export type GameResult = "win" | "loss" | "tie";
 
@@ -53,6 +61,8 @@ export interface GameMetadata {
     scoreFor: number;
     scoreAgainst: number;
     gameType: GameType;
+    /** 部カテゴリ（省略時は1部扱い / 後方互換） */
+    division?: Division;
     officialGameName?: string;
     scoreboardImageUrl?: string;
 }
