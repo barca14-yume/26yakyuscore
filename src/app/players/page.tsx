@@ -22,6 +22,7 @@ import { getDisplayName } from "@/lib/utils";
 import BattingBreakdown from "@/components/player/BattingBreakdown";
 import TrendChart from "@/components/player/TrendChart";
 import PlayerAtBatLog from "@/components/player/PlayerAtBatLog";
+import PlayerPitchingLog from "@/components/player/PlayerPitchingLog";
 import MetricsExplanationDialog from "@/components/shared/MetricsExplanationDialog";
 import {
     Users,
@@ -487,6 +488,13 @@ function PlayersPageContent() {
                                     </div>
                                 </CardContent>
                             </Card>
+
+                            {/* 全登板履歴 */}
+                            <PlayerPitchingLog
+                                playerName={selectedPlayer}
+                                pitchingStats={filteredPitching}
+                                games={data.games}
+                            />
                         </>
                     )}
                 </div>
