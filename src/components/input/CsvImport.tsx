@@ -20,6 +20,7 @@ import {
     BattedBallDirection,
     GameResult,
     GameType,
+    Division,
 } from "@/lib/types";
 import {
     Upload,
@@ -155,6 +156,7 @@ export default function CsvImport() {
                             id: getVal(["id", "アイディ"]) || `csv-game-${Date.now()}-${i}`,
                             date: getVal(["date", "日付", "日時"]) || "",
                             opponent: getVal(["opponent", "相手", "対戦"]) || "",
+                            division: (getVal(["division", "部", "カテゴリ"]) as Division) || "division1",
                             result: (getVal(["result", "結果", "勝敗"]) as GameResult) || "win",
                             scoreFor: Number(getVal(["scorefor", "得点", "自チーム得点", "自チーム"])) || 0,
                             scoreAgainst: Number(getVal(["scoreagainst", "失点", "相手チーム得点", "相手チーム"])) || 0,

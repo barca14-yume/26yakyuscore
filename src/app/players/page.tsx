@@ -18,6 +18,7 @@ import {
     calcRecentBattingTrend,
 } from "@/lib/calculations";
 import { getDisplayName } from "@/lib/utils";
+import { Division } from "@/lib/types";
 
 import BattingBreakdown from "@/components/player/BattingBreakdown";
 import TrendChart from "@/components/player/TrendChart";
@@ -47,35 +48,31 @@ function PlayersPageContent() {
     const searchParams = useSearchParams();
     const initialPlayer = searchParams.get("name") || "";
     const [selectedPlayer, setSelectedPlayer] = useState(initialPlayer);
+    const [filter, setFilter] = useState<GameFilter>("all");
+    const [divisionFilter, setDivisionFilter] = useState<"all" | Division>("all");
     const { data, playerNames } = useData();
 
-    type GameFilter = "all" | "official" | "practice";
-    const [filter, setFilter] = useState<GameFilter>("all");
+    // ゲーム種別と部門でゲームを絞り込む
+    const filteredGames = useMemo(() => {
+        return data.games.filter((g) => {
+            const typeMatch = filter === "all" || g.gameType === filter;
+            const divisionMatch = divisionFilter === "all" || g.division === divisionFilter;
+            return typeMatch && divisionMatch;
+        });
+    }, [data.games, filter, divisionFilter]);
 
-    // フィルター適用後のデータ
-    const { filteredPA, filteredPitching } = useMemo(() => {
-        if (filter === "all") {
-            // "すべて"の場合は孤立データ(gameIdが存在しない等)も救済して全件合算
-            return {
-                filteredPA: data.plateAppearances,
-                filteredPitching: data.pitchingStats,
-            };
-        }
+    // 絞り込んだゲームID集合
+    const filteredGameIds = useMemo(() => new Set(filteredGames.map((g) => g.id)), [filteredGames]);
 
-        let fGames = data.games;
-        if (filter === "official") {
-            fGames = data.games.filter((g) => g.gameType === "official");
-        } else if (filter === "practice") {
-            fGames = data.games.filter((g) => g.gameType === "practice");
-        }
+    // 打席データをゲームIDでフィルタリング
+    const filteredPA = useMemo(() => {
+        return data.plateAppearances.filter((pa) => filteredGameIds.has(pa.gameId));
+    }, [data.plateAppearances, filteredGameIds]);
 
-        const filteredGameIds = new Set(fGames.map((g) => g.id));
-
-        return {
-            filteredPA: data.plateAppearances.filter((pa) => filteredGameIds.has(pa.gameId)),
-            filteredPitching: data.pitchingStats.filter((ps) => filteredGameIds.has(ps.gameId)),
-        };
-    }, [data, filter]);
+    // 投手成績をゲームIDでフィルタリング
+    const filteredPitching = useMemo(() => {
+        return data.pitchingStats.filter((ps) => filteredGameIds.has(ps.gameId));
+    }, [data.pitchingStats, filteredGameIds]);
 
     // 全選手の打撃集計
     const allBattingStats = useMemo(
@@ -139,20 +136,37 @@ function PlayersPageContent() {
                     </p>
                 </div>
 
-                {/* フィルタータブ */}
-                <div className="flex bg-muted/50 p-1 rounded-xl w-full sm:w-auto">
-                    {(["all", "official", "practice"] as GameFilter[]).map((f) => (
-                        <button
-                            key={f}
-                            onClick={() => setFilter(f)}
-                            className={`flex-1 sm:px-6 py-2 rounded-lg text-sm font-semibold transition-all duration-300 ${filter === f
-                                ? "bg-white dark:bg-zinc-800 text-emerald-600 dark:text-emerald-400 shadow-sm"
-                                : "text-muted-foreground hover:bg-black/5 dark:hover:bg-white/5"
-                                }`}
-                        >
-                            {f === "all" ? "すべて" : f === "official" ? "公式戦" : "練習試合"}
-                        </button>
-                    ))}
+                <div className="flex flex-col gap-2">
+                    {/* フィルタータブ */}
+                    <div className="flex bg-muted/50 p-1 rounded-xl w-full sm:w-auto">
+                        {(["all", "official", "practice"] as GameFilter[]).map((f) => (
+                            <button
+                                key={f}
+                                onClick={() => setFilter(f)}
+                                className={`flex-1 sm:px-6 py-2 rounded-lg text-sm font-semibold transition-all duration-300 ${filter === f
+                                    ? "bg-white dark:bg-zinc-800 text-emerald-600 dark:text-emerald-400 shadow-sm"
+                                    : "text-muted-foreground hover:bg-black/5 dark:hover:bg-white/5"
+                                    }`}
+                            >
+                                {f === "all" ? "すべて" : f === "official" ? "公式戦" : "練習試合"}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* 部門フィルター */}
+                    <div className="flex bg-muted/50 p-1 rounded-xl w-full sm:w-auto">
+                        {(["all", "division1", "division2", "division3"] as const).map((d) => (
+                            <button
+                                key={d}
+                                onClick={() => setDivisionFilter(d)}
+                                className={`flex-1 sm:px-4 py-1 rounded-lg text-xs font-medium transition-all duration-200 ${divisionFilter === d
+                                    ? "bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200"
+                                    : "text-muted-foreground hover:bg-black/5 dark:hover:bg-white/5"}`}
+                            >
+                                {d === "all" ? "全部" : d.replace("division", "部")}
+                            </button>
+                        ))}
+                    </div>
                 </div>
             </div>
 

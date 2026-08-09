@@ -216,12 +216,17 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
     /** CSVインポート等で一括データ追加 */
     const importData = useCallback((newData: Partial<AppData>) => {
+        // games に division が無い場合は 1部 とみなす（後方互換）
+        const normalizedGames = (newData.games || []).map((g) => ({
+            ...g,
+            division: g.division ?? "division1",
+        }));
         setState((prev) => ({
             ...prev,
             data: {
                 ...prev.data,
                 players: [...prev.data.players, ...(newData.players || [])],
-                games: [...prev.data.games, ...(newData.games || [])],
+                games: [...prev.data.games, ...normalizedGames],
                 plateAppearances: [
                     ...prev.data.plateAppearances,
                     ...(newData.plateAppearances || []),
@@ -236,24 +241,24 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
     /** CSVインポート等で既存データを上書き（lineupPatternsは保持する） */
     const overwriteImportData = useCallback((newData: Partial<AppData>) => {
-        setState((prev) => ({
-            ...prev,
-            data: {
-                ...prev.data,
-                players: newData.players !== undefined ? newData.players : prev.data.players,
-                games: newData.games !== undefined ? newData.games : prev.data.games,
-                plateAppearances:
-                    newData.plateAppearances !== undefined
-                        ? newData.plateAppearances
-                        : prev.data.plateAppearances,
-                pitchingStats:
-                    newData.pitchingStats !== undefined
-                        ? newData.pitchingStats
-                        : prev.data.pitchingStats,
-                // lineupPatternsは上書きしない（打順パターンを保持するため）
-                lineupPatterns: prev.data.lineupPatterns,
-            },
-        }));
+        setState(prev => {
+            // games: normalize division, fallback to existing if not provided
+            const normalizedGames = newData.games !== undefined
+                ? newData.games.map(g => ({ ...g, division: g.division ?? "division1" }))
+                : prev.data.games;
+            return {
+                ...prev,
+                data: {
+                    ...prev.data,
+                    players: newData.players !== undefined ? newData.players : prev.data.players,
+                    games: normalizedGames,
+                    plateAppearances: newData.plateAppearances !== undefined ? newData.plateAppearances : prev.data.plateAppearances,
+                    pitchingStats: newData.pitchingStats !== undefined ? newData.pitchingStats : prev.data.pitchingStats,
+                    // lineupPatterns は上書きしない（既存を保持）
+                    lineupPatterns: prev.data.lineupPatterns,
+                },
+            };
+        });
     }, []);
 
     /** 指定した試合のすべての打席・投手成績を上書き（既存成績の編集用） */
