@@ -29,10 +29,20 @@ function RecommendLineupContent() {
     const { data, playerNames } = useData();
     const [strategy, setStrategy] = useState<LineupStrategy>("balanced");
 
-    // 全期間の成績を計算
+    // 1部（全員対象の試合）のデータのみを抽出
+    const division1Games = useMemo(() => {
+        return data.games.filter(g => (g.division ?? "division1") === "division1");
+    }, [data.games]);
+
+    const division1PAs = useMemo(() => {
+        const gameIdSet = new Set(division1Games.map(g => g.id));
+        return data.plateAppearances.filter(pa => gameIdSet.has(pa.gameId));
+    }, [data.plateAppearances, division1Games]);
+
+    // 1部のみの通算成績を計算
     const totalStats = useMemo(() => {
-        return aggregateBatting(data.plateAppearances, data.players, undefined, data.games);
-    }, [data.plateAppearances, data.players, data.games]);
+        return aggregateBatting(division1PAs, data.players, undefined, division1Games);
+    }, [division1PAs, data.players, division1Games]);
 
     // おすすめラインナップを生成
     const recommendation = useMemo(() => {
@@ -57,7 +67,7 @@ function RecommendLineupContent() {
                     </div>
                     <div>
                         <h1 className="text-xl sm:text-2xl font-bold tracking-tight">AI おすすめスタメン</h1>
-                        <p className="text-xs text-muted-foreground mt-1">通算成績を元に最適な打順を提案します</p>
+                        <p className="text-xs text-muted-foreground mt-1">1部の公式戦・練習試合の成績のみを元に最適な打順を提案します</p>
                     </div>
                 </div>
             </div>
@@ -103,8 +113,8 @@ function RecommendLineupContent() {
                         <ArrowRight className="h-4 w-4 text-emerald-500" />
                         提案された打順
                     </h2>
-                    <Badge variant="outline" className="text-[10px] bg-background">
-                        通算データを使用
+                    <Badge variant="outline" className="text-[10px] bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800 font-semibold">
+                        1部データのみ対象
                     </Badge>
                 </div>
                 
@@ -144,6 +154,10 @@ function RecommendLineupContent() {
                                     </div>
                                     
                                     <div className="flex items-center gap-4 text-xs tabular-nums text-muted-foreground">
+                                        <div className="text-center">
+                                            <div className="uppercase text-[9px] opacity-70">打席</div>
+                                            <div className="font-medium">{batter.stats.plateAppearances}</div>
+                                        </div>
                                         <div className="text-center">
                                             <div className="uppercase text-[9px] opacity-70">打率</div>
                                             <div className="font-medium">.{(batter.stats.avg * 1000).toFixed(0).padStart(3, "0")}</div>

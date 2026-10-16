@@ -175,6 +175,8 @@ function generatePlateAppearances(): PlateAppearance[] {
                         ["single", "double", "triple"].includes(result) ? (rand() > 0.6 ? 1 : 0) : 0,
                     runs: (["single", "double", "triple", "homerun", "walk", "hbp", "error"].includes(result) && rand() > 0.7) ? 1 : 0,
                     stolenBases: (["single", "double", "walk", "error"].includes(result) && rand() > 0.85) ? 1 : 0,
+                    // 得点圏フラグ: 20% の確率で true に設定
+                    isRisp: rand() < 0.2,
                 });
             }
         }

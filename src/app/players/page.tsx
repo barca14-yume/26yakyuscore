@@ -18,7 +18,7 @@ import {
     calcRecentBattingTrend,
 } from "@/lib/calculations";
 import { getDisplayName } from "@/lib/utils";
-import { Division } from "@/lib/types";
+import { Division, GameFilter } from "@/lib/types";
 
 import BattingBreakdown from "@/components/player/BattingBreakdown";
 import TrendChart from "@/components/player/TrendChart";

@@ -3,6 +3,11 @@
  * 少年野球チームのスコア管理・分析に必要な全型を定義
  */
 
+/**
+ * 試合フィルタタイプ
+ */
+export type GameFilter = "all" | "official" | "practice";
+
 /** 試合タイプ */
 export type GameType = "official" | "practice";
 

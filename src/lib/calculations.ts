@@ -657,6 +657,46 @@ export function aggregateRecentBatting(
     return aggregateBatting(recentPAs, players, undefined, recentGames);
 }
 
+/**
+ * ベイズ回帰による率指標の補正（リグレッション・トゥー・ザ・ミーン）
+ *
+ * 打席数が少ない選手の率が過大/過小評価されるのを防ぐ。
+ * 推定値 = (実打席数 × 実打率 + 信頼度定数 × チーム平均) / (実打席数 + 信頼度定数)
+ *
+ * @param rawRate   - 実際の率（打率、出塁率など）
+ * @param sampleSize - この選手のサンプルサイズ（打席数 or 打数）
+ * @param leagueMean - チーム全体の平均値（事前分布の中心）
+ * @param regressionK - 信頼度定数（この打席数で50%チーム平均に回帰する）。
+ *                      少年野球では試合数が少ないため10が適切。
+ */
+function bayesianRegression(
+    rawRate: number,
+    sampleSize: number,
+    leagueMean: number,
+    regressionK: number = 10
+): number {
+    if (sampleSize <= 0) return leagueMean;
+    return (sampleSize * rawRate + regressionK * leagueMean) / (sampleSize + regressionK);
+}
+
+/**
+ * 打席数に基づく信頼度ボーナス（0.0〜1.0）
+ * 打席が多い選手ほどスコアにボーナスが乗り、実績の信頼性を反映する。
+ * minPA未満は0、maxPA以上は1.0、その間は線形補間。
+ */
+function confidenceWeight(plateAppearances: number, minPA: number = 3, maxPA: number = 15): number {
+    if (plateAppearances <= minPA) return 0;
+    if (plateAppearances >= maxPA) return 1.0;
+    return (plateAppearances - minPA) / (maxPA - minPA);
+}
+
+/**
+ * 率指標のフォーマット（.xxx 形式）
+ */
+function formatRate(rate: number): string {
+    return `.${(rate * 1000).toFixed(0).padStart(3, "0")}`;
+}
+
 export function generateRecommendedLineup(
     recentStats: BattingAggregation[],
     strategy: LineupStrategy
@@ -664,101 +704,306 @@ export function generateRecommendedLineup(
     // 特別ルール1: 「松下」は退団済みのためスタメン候補から除外
     const activeStats = recentStats.filter(s => !s.playerName.includes("松下"));
 
-    // まず、直近で打席に立っている選手（2打席以上）をフィルタリング
-    const candidates = activeStats.filter(s => s.plateAppearances >= 2);
-    // もし候補が9人に満たない場合は、除外されていない全選手から選ぶ
-    const pool = candidates.length >= 9 ? candidates : activeStats;
+    // --- チーム平均を計算（ベイズ回帰の事前分布として使用） ---
+    // 打席が1以上の選手のみを対象に、打席数で加重平均を取る
+    const activeBatters = activeStats.filter(s => s.plateAppearances >= 1);
+    const totalPA = activeBatters.reduce((sum, s) => sum + s.plateAppearances, 0);
+    const totalAB = activeBatters.reduce((sum, s) => sum + s.atBats, 0);
+
+    const teamAvg = totalAB > 0
+        ? activeBatters.reduce((sum, s) => sum + s.hits, 0) / totalAB
+        : 0.250;
+    const teamObp = totalPA > 0
+        ? activeBatters.reduce((sum, s) => sum + (s.obp * s.plateAppearances), 0) / totalPA
+        : 0.300;
+    const teamSlg = totalAB > 0
+        ? activeBatters.reduce((sum, s) => sum + (s.slg * s.atBats), 0) / totalAB
+        : 0.300;
+    const teamOps = teamObp + teamSlg;
+    // 得点圏打率のチーム平均（得点圏打席がある選手のみ）
+    const rispBatters = activeBatters.filter(s => s.rispAvg > 0 || s.plateAppearances >= 5);
+    const teamRispAvg = rispBatters.length > 0
+        ? rispBatters.reduce((sum, s) => sum + s.rispAvg, 0) / rispBatters.length
+        : teamAvg;
+
+    // --- 信頼度定数: 少年野球では打席数が少ないため、10打席で50%回帰 ---
+    const REGRESSION_K = 10;
+
+    // 候補フィルタリング: 打席が3以上の選手を候補とする
+    // (2打席以下では信頼性が低すぎるため候補から除外)
+    const candidates = activeStats.filter(s => s.plateAppearances >= 3);
+    // もし候補が9人に満たない場合は、1打席以上の全選手から選ぶ
+    const pool = candidates.length >= 9 ? candidates : activeBatters.length >= 9 ? activeBatters : activeStats;
+
+    // --- 各選手に補正済みスコアを付与する拡張型 ---
+    interface ScoredPlayer {
+        stats: BattingAggregation;
+        /** 補正済み打率 */
+        adjAvg: number;
+        /** 補正済み出塁率 */
+        adjObp: number;
+        /** 補正済み長打率 */
+        adjSlg: number;
+        /** 補正済みOPS */
+        adjOps: number;
+        /** 補正済み得点圏打率 */
+        adjRispAvg: number;
+        /** 打席数ベースの信頼度 (0-1) */
+        confidence: number;
+        /** 補正済みRC（打席数で正規化したRC/打席に信頼度を加味） */
+        adjRcScore: number;
+    }
+
+    const scoredPool: ScoredPlayer[] = pool.map(s => {
+        const adjAvg = bayesianRegression(s.avg, s.atBats, teamAvg, REGRESSION_K);
+        const adjObp = bayesianRegression(s.obp, s.plateAppearances, teamObp, REGRESSION_K);
+        const adjSlg = bayesianRegression(s.slg, s.atBats, teamSlg, REGRESSION_K);
+        const adjOps = adjObp + adjSlg;
+        const adjRispAvg = bayesianRegression(s.rispAvg, s.plateAppearances, teamRispAvg, REGRESSION_K);
+        const conf = confidenceWeight(s.plateAppearances, 3, 15);
+
+        // RC は累積指標なので、打席あたりRC (RC/PA) をベースに信頼度補正する
+        const rcPerPA = s.plateAppearances > 0 ? s.rc / s.plateAppearances : 0;
+        const teamRcPerPA = totalPA > 0
+            ? activeBatters.reduce((sum, p) => sum + p.rc, 0) / totalPA
+            : 0;
+        const adjRcPerPA = bayesianRegression(rcPerPA, s.plateAppearances, teamRcPerPA, REGRESSION_K);
+        // 補正済みRCスコア = 補正済みRC/PA × 打席数（信頼度で傾斜）
+        const adjRcScore = adjRcPerPA * (s.plateAppearances * (0.7 + 0.3 * conf));
+
+        return { stats: s, adjAvg, adjObp, adjSlg, adjOps, adjRispAvg, confidence: conf, adjRcScore };
+    });
 
     let batters: RecommendedBatter[] = [];
     let strategyName = "";
     let description = "";
 
-    if (strategy === "rc_focused") {
-        strategyName = "超攻撃型 (RC優先)";
-        description = "得点創出能力(RC)が最も高い選手を上位から並べた、とにかく点を取るための攻撃的な打順です。";
-        const sorted = [...pool].sort((a, b) => b.rc - a.rc);
-        batters = sorted.slice(0, 9).map((stats, i) => ({
-            order: i + 1,
-            playerName: stats.playerName,
-            reason: `RC ${stats.rc.toFixed(2)} / 打率 .${(stats.avg * 1000).toFixed(0).padStart(3, "0")}`,
-            stats
-        }));
-    } else if (strategy === "obp_focused") {
-        strategyName = "チャンスメイク (出塁率優先)";
-        description = "出塁率(OBP)を最優先しつつ、盗塁（足の速さ）も加味してランナーを溜めることに特化した打順です。";
-        const sorted = [...pool].sort((a, b) => {
-            const scoreA = a.obp + (a.stolenBases * 0.05);
-            const scoreB = b.obp + (b.stolenBases * 0.05);
-            return scoreB - scoreA;
-        });
-        batters = sorted.slice(0, 9).map((stats, i) => ({
-            order: i + 1,
-            playerName: stats.playerName,
-            reason: `出塁率 .${(stats.obp * 1000).toFixed(0).padStart(3, "0")} / 盗塁 ${stats.stolenBases}`,
-            stats
-        }));
-    } else if (strategy === "risp_focused") {
-        strategyName = "勝負強さ (得点圏打率優先)";
-        description = "得点圏打率や打点の多さを重視し、チャンスで確実に点を取ることを狙った打順です。";
-        const sorted = [...pool].sort((a, b) => {
-            if (b.rispAvg !== a.rispAvg) return b.rispAvg - a.rispAvg;
-            return b.rbi - a.rbi; // 同点なら打点でソート
-        });
-        batters = sorted.slice(0, 9).map((stats, i) => ({
-            order: i + 1,
-            playerName: stats.playerName,
-            reason: `得点圏打率 .${(stats.rispAvg * 1000).toFixed(0).padStart(3, "0")}`,
-            stats
-        }));
-    } else {
-        // balanced
-        strategyName = "総合バランス";
-        description = "上位に出塁率が高い選手、中軸に長打力・得点創出能力(RC)が高い選手を配置した伝統的でバランスの良い打順です。";
-        
-        // RC上位9名を選抜
-        const top9 = [...pool].sort((a, b) => b.rc - a.rc).slice(0, 9);
+    // 候補から上位9名を選出
+    const top9 = [...scoredPool].sort((a, b) => b.adjRcScore - a.adjRcScore).slice(0, 9);
+
+    // 打順割り当てヘルパー関数
+    const buildLineupWithRoles = (
+        assignments: {
+            order: number;
+            sortFn: (a: ScoredPlayer, b: ScoredPlayer) => number;
+            filterFn?: (p: ScoredPlayer) => boolean;
+            reasonFn: (p: ScoredPlayer) => string;
+        }[]
+    ): RecommendedBatter[] => {
         const assigned = new Set<string>();
         const lineup: RecommendedBatter[] = [];
 
-        const assignBest = (order: number, sortFn: (a: BattingAggregation, b: BattingAggregation) => number, reasonFn: (s: BattingAggregation) => string) => {
+        for (const assign of assignments) {
             const available = top9.filter(p => {
-                if (assigned.has(p.playerName)) return false;
-                // 特別ルール2: 「岡﨑」は足が遅いため、1番、2番には配置しない
-                if ((order === 1 || order === 2) && (p.playerName.includes("岡﨑") || p.playerName.includes("岡崎"))) return false;
+                if (assigned.has(p.stats.playerName)) return false;
+                if (assign.filterFn && !assign.filterFn(p)) return false;
                 return true;
             });
-            if (available.length === 0) return;
-            const best = available.sort(sortFn)[0];
-            assigned.add(best.playerName);
-            lineup.push({ order, playerName: best.playerName, reason: reasonFn(best), stats: best });
-        };
+            // 条件を満たす候補がいない場合は、未割り当ての全員から選出
+            const candidatesToUse = available.length > 0 ? available : top9.filter(p => !assigned.has(p.stats.playerName));
+            if (candidatesToUse.length === 0) continue;
 
-        assignBest(1, (a, b) => {
-            const scoreA = a.obp + (a.stolenBases * 0.05);
-            const scoreB = b.obp + (b.stolenBases * 0.05);
-            return scoreB - scoreA;
-        }, s => `出塁率 .${(s.obp * 1000).toFixed(0).padStart(3, "0")} + 盗塁 ${s.stolenBases} (1番適正)`);
-
-        assignBest(2, (a, b) => {
-            const scoreA = a.obp + (a.stolenBases * 0.02);
-            const scoreB = b.obp + (b.stolenBases * 0.02);
-            return scoreB - scoreA;
-        }, s => `出塁率 .${(s.obp * 1000).toFixed(0).padStart(3, "0")} (2番適正)`);
-
-        assignBest(3, (a, b) => b.rc - a.rc, s => `RC ${s.rc.toFixed(2)} / 打率 .${(s.avg * 1000).toFixed(0).padStart(3, "0")} (中軸)`);
-        assignBest(4, (a, b) => {
-            // OPS(70%) と 打率(30%) のバランスで評価（四球だけでなくヒットを打てる人を優先）
-            const scoreA = (a.ops * 0.7) + (a.avg * 0.3);
-            const scoreB = (b.ops * 0.7) + (b.avg * 0.3);
-            return scoreB - scoreA;
-        }, s => `OPS ${s.ops.toFixed(3)} / 打率 .${(s.avg * 1000).toFixed(0).padStart(3, "0")} (4番適正)`);
-        assignBest(5, (a, b) => b.rispAvg - a.rispAvg, s => `得点圏 .${(s.rispAvg * 1000).toFixed(0).padStart(3, "0")}`);
-        
-        for (let i = 6; i <= 9; i++) {
-            assignBest(i, (a, b) => b.rc - a.rc, s => `RC ${s.rc.toFixed(2)}`);
+            const best = candidatesToUse.sort(assign.sortFn)[0];
+            assigned.add(best.stats.playerName);
+            lineup.push({
+                order: assign.order,
+                playerName: best.stats.playerName,
+                reason: assign.reasonFn(best),
+                stats: best.stats,
+            });
         }
+        return lineup;
+    };
 
-        batters = lineup;
+    const isOkazaki = (p: ScoredPlayer) => p.stats.playerName.includes("岡﨑") || p.stats.playerName.includes("岡崎");
+
+    if (strategy === "rc_focused") {
+        strategyName = "超攻撃型 (RC優先)";
+        description = "得点創出能力(RC)が最も高い選手を上位から並べた攻撃的な打順です。打席数による信頼度を加味し、少ない打席での好成績の過大評価を抑制しています。";
+        const sorted = [...top9].sort((a, b) => b.adjRcScore - a.adjRcScore);
+        batters = sorted.map((p, i) => ({
+            order: i + 1,
+            playerName: p.stats.playerName,
+            reason: `RC ${p.stats.rc.toFixed(2)} (補正スコア ${p.adjRcScore.toFixed(2)}) / 打率 ${formatRate(p.stats.avg)} (${p.stats.plateAppearances}打席)`,
+            stats: p.stats
+        }));
+    } else if (strategy === "obp_focused") {
+        strategyName = "チャンスメイク (出塁率優先)";
+        description = "補正済み出塁率と走力を最優先した打順です。1・2番に確実に出塁できる選手を置き、中軸に返す打者を配置します。";
+        batters = buildLineupWithRoles([
+            // 1番: 出塁率最優先 + 俊足
+            {
+                order: 1,
+                filterFn: p => !isOkazaki(p),
+                sortFn: (a, b) => (b.adjObp + b.stats.stolenBases * 0.04) - (a.adjObp + a.stats.stolenBases * 0.04),
+                reasonFn: p => `出塁率 ${formatRate(p.stats.obp)}→補正${formatRate(p.adjObp)} + 盗塁 ${p.stats.stolenBases} (リードオフ)`
+            },
+            // 2番: 出塁率
+            {
+                order: 2,
+                filterFn: p => !isOkazaki(p),
+                sortFn: (a, b) => (b.adjObp + b.stats.stolenBases * 0.02) - (a.adjObp + a.stats.stolenBases * 0.02),
+                reasonFn: p => `出塁率 ${formatRate(p.stats.obp)}→補正${formatRate(p.adjObp)} (チャンス拡大)`
+            },
+            // 4番: 残りのうち長打力・OPSトップ
+            {
+                order: 4,
+                sortFn: (a, b) => b.adjOps - a.adjOps,
+                reasonFn: p => `OPS ${p.stats.ops.toFixed(3)}→補正${p.adjOps.toFixed(3)} (主砲)`
+            },
+            // 3番: 出塁率+総合打力
+            {
+                order: 3,
+                sortFn: (a, b) => (b.adjObp * 0.6 + b.adjRcScore * 0.4) - (a.adjObp * 0.6 + a.adjRcScore * 0.4),
+                reasonFn: p => `出塁率 ${formatRate(p.stats.obp)} / RC ${p.stats.rc.toFixed(2)}`
+            },
+            // 5番: 得点圏
+            {
+                order: 5,
+                sortFn: (a, b) => b.adjRispAvg - a.adjRispAvg,
+                reasonFn: p => `得点圏 ${formatRate(p.stats.rispAvg)}→補正${formatRate(p.adjRispAvg)}`
+            },
+            // 6-9番: 出塁率順
+            { order: 6, sortFn: (a, b) => b.adjObp - a.adjObp, reasonFn: p => `出塁率 ${formatRate(p.stats.obp)}` },
+            { order: 7, sortFn: (a, b) => b.adjObp - a.adjObp, reasonFn: p => `出塁率 ${formatRate(p.stats.obp)}` },
+            { order: 8, sortFn: (a, b) => b.adjObp - a.adjObp, reasonFn: p => `出塁率 ${formatRate(p.stats.obp)}` },
+            { order: 9, sortFn: (a, b) => b.adjObp - a.adjObp, reasonFn: p => `出塁率 ${formatRate(p.stats.obp)} (下位チャンスメイク)` },
+        ]);
+    } else if (strategy === "risp_focused") {
+        strategyName = "勝負強さ (得点圏打率優先)";
+        description = "チャンスでランナーを返す得点圏打率を重視した打順です。1・2番が出塁し、3〜5番の勝負強いクリーンナップがランナーを一掃します。";
+        // 得点圏重視でも1・2番は出塁できる打者！3〜5番に得点圏強打者を配置
+        batters = buildLineupWithRoles([
+            // まず4番: チーム最強の勝負強さ + 長打力
+            {
+                order: 4,
+                sortFn: (a, b) => {
+                    const scoreA = a.adjRispAvg * 0.5 + a.adjSlg * 0.3 + Math.min(a.stats.rbi / 20, 0.3) * 0.2;
+                    const scoreB = b.adjRispAvg * 0.5 + b.adjSlg * 0.3 + Math.min(b.stats.rbi / 20, 0.3) * 0.2;
+                    return scoreB - scoreA;
+                },
+                reasonFn: p => `得点圏 ${formatRate(p.stats.rispAvg)}→補正${formatRate(p.adjRispAvg)} / 打点 ${p.stats.rbi} (4番・主砲)`
+            },
+            // 3番: 得点圏打率 + 総合打率
+            {
+                order: 3,
+                sortFn: (a, b) => (b.adjRispAvg * 0.6 + b.adjAvg * 0.4) - (a.adjRispAvg * 0.6 + a.adjAvg * 0.4),
+                reasonFn: p => `得点圏 ${formatRate(p.stats.rispAvg)} / 打率 ${formatRate(p.stats.avg)} (3番)`
+            },
+            // 5番: 得点圏打率 + 打点
+            {
+                order: 5,
+                sortFn: (a, b) => (b.adjRispAvg * 0.7 + Math.min(b.stats.rbi / 20, 0.3) * 0.3) - (a.adjRispAvg * 0.7 + Math.min(a.stats.rbi / 20, 0.3) * 0.3),
+                reasonFn: p => `得点圏 ${formatRate(p.stats.rispAvg)} / 打点 ${p.stats.rbi} (5番)`
+            },
+            // 1番: ランナーを出すための高出塁率 + 走力
+            {
+                order: 1,
+                filterFn: p => !isOkazaki(p),
+                sortFn: (a, b) => (b.adjObp + b.stats.stolenBases * 0.04) - (a.adjObp + a.stats.stolenBases * 0.04),
+                reasonFn: p => `出塁率 ${formatRate(p.stats.obp)}→補正${formatRate(p.adjObp)} (1番・出塁役)`
+            },
+            // 2番: 出塁率
+            {
+                order: 2,
+                filterFn: p => !isOkazaki(p),
+                sortFn: (a, b) => b.adjObp - a.adjObp,
+                reasonFn: p => `出塁率 ${formatRate(p.stats.obp)}→補正${formatRate(p.adjObp)} (2番・繋ぎ)`
+            },
+            // 6-9番: 残りの打力順
+            { order: 6, sortFn: (a, b) => b.adjRcScore - a.adjRcScore, reasonFn: p => `RC ${p.stats.rc.toFixed(2)}` },
+            { order: 7, sortFn: (a, b) => b.adjRcScore - a.adjRcScore, reasonFn: p => `RC ${p.stats.rc.toFixed(2)}` },
+            { order: 8, sortFn: (a, b) => b.adjRcScore - a.adjRcScore, reasonFn: p => `RC ${p.stats.rc.toFixed(2)}` },
+            { order: 9, sortFn: (a, b) => b.adjRcScore - a.adjRcScore, reasonFn: p => `RC ${p.stats.rc.toFixed(2)}` },
+        ]);
+    } else {
+        // balanced (総合バランス)
+        strategyName = "総合バランス";
+        description = "野球のセオリーに基づき、4番にチーム最高の長打力、3番に総合打力、5番に勝負強さを配置。1・2番には出塁力と走力のある選手を配置した王道打順です。";
+
+        // ★最重要: 1番から順に選ぶのではなく、4番・中軸から先に決定する！
+        // これにより「最強打者が1・2番の出塁率選抜に奪われる」問題を防ぐ
+        batters = buildLineupWithRoles([
+            // ①【4番】最優先選出: チーム最高の長打力・破壊力・OPS
+            {
+                order: 4,
+                sortFn: (a, b) => {
+                    // 長打率(50%) + OPS(35%) + 打点(15%) で真の4番を選抜
+                    const scoreA = (a.adjSlg * 0.5) + (a.adjOps * 0.35) + Math.min(a.stats.rbi / 20, 0.3) * 0.15;
+                    const scoreB = (b.adjSlg * 0.5) + (b.adjOps * 0.35) + Math.min(b.stats.rbi / 20, 0.3) * 0.15;
+                    return scoreB - scoreA;
+                },
+                reasonFn: p => `長打率 ${formatRate(p.stats.slg)} / OPS ${p.stats.ops.toFixed(3)} (チーム最高長打力・4番主砲)`
+            },
+
+            // ②【3番】次に選出: チーム最高のアベレージ＆総合得点創出能力(RC)
+            {
+                order: 3,
+                sortFn: (a, b) => {
+                    const scoreA = a.adjRcScore + (a.adjAvg * 2.0);
+                    const scoreB = b.adjRcScore + (b.adjAvg * 2.0);
+                    return scoreB - scoreA;
+                },
+                reasonFn: p => `打率 ${formatRate(p.stats.avg)} / RC ${p.stats.rc.toFixed(2)} (総合打撃力・3番)`
+            },
+
+            // ③【5番】次に選出: 得点圏打率が高く、4番の後ろを打てる勝負強さ
+            {
+                order: 5,
+                sortFn: (a, b) => {
+                    const scoreA = (a.adjRispAvg * 0.65) + (a.adjOps * 0.35);
+                    const scoreB = (b.adjRispAvg * 0.65) + (b.adjOps * 0.35);
+                    return scoreB - scoreA;
+                },
+                reasonFn: p => `得点圏 ${formatRate(p.stats.rispAvg)}→補正${formatRate(p.adjRispAvg)} / OPS ${p.stats.ops.toFixed(3)} (勝負強さ・5番)`
+            },
+
+            // ④【1番】出塁率が高く、足が使えるチャンスメーカー（※岡﨑は除外）
+            {
+                order: 1,
+                filterFn: p => !isOkazaki(p),
+                sortFn: (a, b) => {
+                    const scoreA = a.adjObp + (a.stats.stolenBases * 0.04);
+                    const scoreB = b.adjObp + (b.stats.stolenBases * 0.04);
+                    return scoreB - scoreA;
+                },
+                reasonFn: p => `出塁率 ${formatRate(p.stats.obp)}→補正${formatRate(p.adjObp)} + 盗塁 ${p.stats.stolenBases} (リードオフ)`
+            },
+
+            // ⑤【2番】出塁率と小技・繋ぎ（※岡﨑は除外）
+            {
+                order: 2,
+                filterFn: p => !isOkazaki(p),
+                sortFn: (a, b) => {
+                    const scoreA = (a.adjObp * 0.7) + (a.adjAvg * 0.3) + (a.stats.stolenBases * 0.02);
+                    const scoreB = (b.adjObp * 0.7) + (b.adjAvg * 0.3) + (b.stats.stolenBases * 0.02);
+                    return scoreB - scoreA;
+                },
+                reasonFn: p => `出塁率 ${formatRate(p.stats.obp)}→補正${formatRate(p.adjObp)} (チャンス拡大・繋ぎ)`
+            },
+
+            // ⑥【6〜9番】残りの選手を総合打力(RC)順に配置
+            {
+                order: 6,
+                sortFn: (a, b) => b.adjRcScore - a.adjRcScore,
+                reasonFn: p => `RC ${p.stats.rc.toFixed(2)} (下位打線の中軸)`
+            },
+            {
+                order: 7,
+                sortFn: (a, b) => b.adjRcScore - a.adjRcScore,
+                reasonFn: p => `RC ${p.stats.rc.toFixed(2)}`
+            },
+            {
+                order: 8,
+                sortFn: (a, b) => b.adjRcScore - a.adjRcScore,
+                reasonFn: p => `RC ${p.stats.rc.toFixed(2)}`
+            },
+            {
+                order: 9,
+                sortFn: (a, b) => (b.adjObp + b.stats.stolenBases * 0.02) - (a.adjObp + a.stats.stolenBases * 0.02),
+                reasonFn: p => `出塁率 ${formatRate(p.stats.obp)} (セカンドリードオフ)`
+            },
+        ]);
     }
 
     // 各戦略共通の事後処理 (特別ルール2: 岡﨑の配置調整)

@@ -7,6 +7,7 @@
 import React, { useState, useMemo } from "react";
 import { useData } from "@/lib/data-context";
 import type { Division } from "@/lib/types";
+import type { GameFilter } from "@/lib/types"; // 新規インポート（GameFilterは型エイリアス）
 import {
   calcTeamBattingAvg,
   calcTeamERA,
@@ -25,13 +26,16 @@ type DivisionFilter = "all" | "division1" | "division2" | "division3";
 
 export default function DashboardPage() {
   const { data } = useData();
-  const [filter, setFilter] = useState<DivisionFilter>("all");
+  const [divisionFilter, setDivisionFilter] = useState<"all" | Division>("all");
+  const [gameFilter, setGameFilter] = useState<GameFilter>("all");
 
   // フィルター適用後のデータ（部カテゴリでフィルタリング）
   const { filteredGames, filteredPA, filteredPitching } = useMemo(() => {
-    const fGames = filter === "all"
-      ? data.games
-      : data.games.filter(g => (g.division ?? "division1") === filter);
+    const fGames = data.games.filter(g => {
+      const divisionMatch = divisionFilter === "all" || (g.division ?? "division1") === divisionFilter;
+      const gameTypeMatch = gameFilter === "all" || g.gameType === gameFilter;
+      return divisionMatch && gameTypeMatch;
+    });
 
     const filteredGameIds = new Set(fGames.map(g => g.id));
 
@@ -40,7 +44,7 @@ export default function DashboardPage() {
       filteredPA: data.plateAppearances.filter(pa => filteredGameIds.has(pa.gameId)),
       filteredPitching: data.pitchingStats.filter(ps => filteredGameIds.has(ps.gameId)),
     };
-  }, [data, filter]);
+  }, [data, divisionFilter, gameFilter]);
 
   // KPI計算
   const teamAvg = calcTeamBattingAvg(filteredPA);
@@ -73,26 +77,42 @@ export default function DashboardPage() {
         </div>
 
         {/* フィルタータブ（部カテゴリ） */}
-        <div className="flex bg-muted/50 p-1 rounded-xl w-full sm:w-auto">
+        <div className="flex bg-muted/50 p-1 rounded-xl w-full sm:w-auto mb-2">
           {([
-            { value: "all" as DivisionFilter, label: "トータル" },
-            { value: "division1" as DivisionFilter, label: "1部" },
-            { value: "division2" as DivisionFilter, label: "2部" },
-            { value: "division3" as DivisionFilter, label: "3部" },
+            { value: "all" as "all" | Division, label: "トータル" },
+            { value: "division1" as "division1", label: "1部" },
+            { value: "division2" as "division2", label: "2部" },
+            { value: "division3" as "division3", label: "3部" },
           ]).map(({ value, label }) => (
             <button
               key={value}
-              onClick={() => setFilter(value)}
-              className={`flex-1 sm:px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-300 ${filter === value
+              onClick={() => setDivisionFilter(value)}
+              className={`flex-1 sm:px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-300 ${divisionFilter === value
                 ? "bg-white dark:bg-zinc-800 text-emerald-600 dark:text-emerald-400 shadow-sm"
-                : "text-muted-foreground hover:bg-black/5 dark:hover:bg-white/5"
-                }`}
+                : "text-muted-foreground hover:bg-black/5 dark:hover:bg-white/5"}`}
             >
               {label}
             </button>
           ))}
         </div>
-      </div>
+        {/* フィルタータブ（ゲーム種別） */}
+        <div className="flex bg-muted/50 p-1 rounded-xl w-full sm:w-auto">
+          {([
+            { value: "all" as GameFilter, label: "全て" },
+            { value: "official" as GameFilter, label: "公式戦" },
+            { value: "practice" as GameFilter, label: "練習試合" },
+          ]).map(({ value, label }) => (
+            <button
+              key={value}
+              onClick={() => setGameFilter(value)}
+              className={`flex-1 sm:px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${gameFilter === value
+                ? "bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200"
+                : "text-muted-foreground hover:bg-black/5 dark:hover:bg-white/5"}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>      </div>
 
       {/* KPIカード群 */}
       <div

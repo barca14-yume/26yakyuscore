@@ -55,9 +55,11 @@ export default function TeamOverview({ battingStats, limit = 8, totalGames }: Te
     const { playerNames } = useData();
     const [sortBy, setSortBy] = React.useState<keyof BattingAggregation>("avg");
     const isRateMetric = ["avg", "recentAvg", "rispAvg", "ops", "slg", "obp", "strikeoutRate", "bbPercentage", "isop", "babip", "rc", "bbK"].includes(sortBy);
-    // 規定打席: チーム試合数 × 0.8 (四捨五入)
-    const minPA = Math.round(totalGames * 0.8);
-
+// 規定打席: チーム総打席の4% (四捨五入)。最低1打席は表示
+    const totalTeamPA = battingStats.reduce((sum, b) => sum + (b.plateAppearances ?? 0), 0);
+    const computedMinPA = Math.round(totalTeamPA * 0.04);
+    const minPA = computedMinPA > 0 ? computedMinPA : 1;
+    
     // 規定打席に基づいてフィルタリング
     // 直近5試合打率(recentAvg)の場合は、直近4試合以内にデータがある選手のみを対象とする
     const qualifiedBatters = battingStats.filter(b => {
